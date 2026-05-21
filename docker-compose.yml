@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: finlab_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: finlab
+      POSTGRES_USER: finlab
+      POSTGRES_PASSWORD: finlab
+    ports:
+      - "5432:5432"
+    volumes:
+      - finlab_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  finlab_postgres_data:

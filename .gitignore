@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Env files
+.env
+.env.*
+
+# But keep examples
+!.env.example
+
+# Alembic cache
+backend/alembic/__pycache__/
+backend/alembic/versions/__pycache__/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+
+# Docker local volumes/data
+postgres_data/

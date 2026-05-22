@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.modules.market.router import router as market_router
 
 
 app = FastAPI(
@@ -20,3 +21,9 @@ def health_check():
 def database_health_check(db: Session = Depends(get_db)):
     db.execute(text("SELECT 1"))
     return {"status": "ok", "database": "connected"}
+
+
+app.include_router(
+    market_router,
+    prefix=settings.api_v1_prefix,
+)

@@ -26,3 +26,18 @@ class TickerListItem(BaseModel):
     latest_price: Decimal | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MoexTickerData(BaseModel):
+    secid: str
+    short_name: str | None = None
+    name: str | None = None
+
+    board: str
+    market: str
+    engine: str
+
+    currency: str | None = None
+    price: Decimal | None = None
+
+    model_config = ConfigDict(from_attributes=True)

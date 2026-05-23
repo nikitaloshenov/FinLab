@@ -41,3 +41,17 @@ class MoexTickerData(BaseModel):
     price: Decimal | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TickerPriceRead(BaseModel):
+    secid: str
+    short_name: str | None = None
+    price: Decimal
+    previous_price: Decimal | None = None
+    source: str
+    received_at: datetime
+    market_time: datetime | None = None
+
+
+class TickerRefreshResult(TickerPriceRead):
+    saved: bool = True

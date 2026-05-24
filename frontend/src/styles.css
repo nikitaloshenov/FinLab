@@ -177,3 +177,13 @@ button:disabled {
 .dangerButton:hover {
   background: #991b1b;
 }
+
+.rowActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.rowActions button {
+  padding: 8px 12px;
+}

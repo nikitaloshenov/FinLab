@@ -28,6 +28,7 @@ export function MarketPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isRefreshAllLoading, setIsRefreshAllLoading] = useState(false);
+  const [isCheckingAllAlerts, setIsCheckingAllAlerts] = useState(false);
 
   const [refreshingTickers, setRefreshingTickers] = useState([]);
   const [checkingAlerts, setCheckingAlerts] = useState([]);
@@ -242,6 +243,42 @@ export function MarketPage() {
     }
   }
 
+  async function handleCheckAllActiveAlerts() {
+    const activeAlerts = alerts.filter((alert) => alert.is_active);
+
+    if (activeAlerts.length === 0) {
+      setErrorMessage("");
+      setInfoMessage("Активных alert’ов для проверки нет.");
+      return;
+    }
+
+    const activeAlertIds = activeAlerts.map((alert) => alert.id);
+
+    try {
+      setErrorMessage("");
+      setInfoMessage("");
+      setIsCheckingAllAlerts(true);
+      setCheckingAlerts(activeAlertIds);
+
+      const results = await Promise.all(
+        activeAlerts.map((alert) => checkAlert(alert.id))
+      );
+
+      await Promise.all([loadAlerts(), loadAlertEvents()]);
+
+      const triggeredCount = results.filter((result) => result.triggered).length;
+
+      setInfoMessage(
+        `Проверено alert’ов: ${activeAlerts.length}. Сработало: ${triggeredCount}.`
+      );
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsCheckingAllAlerts(false);
+      setCheckingAlerts([]);
+    }
+  }
+
   async function handleDeleteAlert(alertId) {
     try {
       setIsActionLoading(true);
@@ -261,6 +298,7 @@ export function MarketPage() {
   }
 
   const hasWatchlistItems = watchlist.length > 0;
+  const hasActiveAlerts = alerts.some((alert) => alert.is_active);
 
   return (
     <main className="page">
@@ -395,6 +433,19 @@ export function MarketPage() {
             <h2>Price Alerts</h2>
             <p>Создай правило: цена выше или ниже заданного уровня.</p>
           </div>
+
+          <button
+            type="button"
+            disabled={
+              isLoading ||
+              isActionLoading ||
+              isCheckingAllAlerts ||
+              !hasActiveAlerts
+            }
+            onClick={handleCheckAllActiveAlerts}
+          >
+            {isCheckingAllAlerts ? "Checking..." : "Check all active alerts"}
+          </button>
         </div>
 
         <form className="alertForm" onSubmit={handleCreateAlert}>
@@ -471,6 +522,7 @@ export function MarketPage() {
                             type="button"
                             disabled={
                               isActionLoading ||
+                              isCheckingAllAlerts ||
                               isChecking ||
                               !alert.is_active
                             }
@@ -482,7 +534,11 @@ export function MarketPage() {
                           <button
                             className="dangerButton"
                             type="button"
-                            disabled={isActionLoading || isChecking}
+                            disabled={
+                              isActionLoading ||
+                              isCheckingAllAlerts ||
+                              isChecking
+                            }
                             onClick={() => handleDeleteAlert(alert.id)}
                           >
                             Delete

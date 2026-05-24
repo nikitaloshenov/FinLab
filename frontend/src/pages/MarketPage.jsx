@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 
+import {
+  checkAlert,
+  createAlert,
+  deleteAlert,
+  getAlertEvents,
+  getAlerts,
+} from "../features/alerts/api.js";
 import { refreshTickerPrice } from "../features/market/api.js";
 import {
   addWatchlistItem,
@@ -9,14 +16,24 @@ import {
 
 export function MarketPage() {
   const [watchlist, setWatchlist] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [alertEvents, setAlertEvents] = useState([]);
+
   const [newTicker, setNewTicker] = useState("");
+
+  const [alertTicker, setAlertTicker] = useState("");
+  const [alertCondition, setAlertCondition] = useState("above");
+  const [alertTargetPrice, setAlertTargetPrice] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isRefreshAllLoading, setIsRefreshAllLoading] = useState(false);
 
   const [refreshingTickers, setRefreshingTickers] = useState([]);
+  const [checkingAlerts, setCheckingAlerts] = useState([]);
+
   const [errorMessage, setErrorMessage] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
 
   async function loadWatchlist({ showLoader = true } = {}) {
     try {
@@ -38,8 +55,39 @@ export function MarketPage() {
     }
   }
 
+  async function loadAlerts() {
+    const data = await getAlerts();
+    setAlerts(data);
+  }
+
+  async function loadAlertEvents() {
+    const data = await getAlertEvents();
+    setAlertEvents(data);
+  }
+
+  async function loadPageData() {
+    try {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      const [watchlistData, alertsData, alertEventsData] = await Promise.all([
+        getWatchlist(),
+        getAlerts(),
+        getAlertEvents(),
+      ]);
+
+      setWatchlist(watchlistData);
+      setAlerts(alertsData);
+      setAlertEvents(alertEventsData);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
-    loadWatchlist();
+    loadPageData();
   }, []);
 
   async function handleAddTicker(event) {
@@ -55,11 +103,14 @@ export function MarketPage() {
     try {
       setIsActionLoading(true);
       setErrorMessage("");
+      setInfoMessage("");
 
       await addWatchlistItem(normalizedTicker);
 
       setNewTicker("");
       await loadWatchlist({ showLoader: false });
+
+      setInfoMessage(`${normalizedTicker} добавлен в watchlist.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -71,10 +122,13 @@ export function MarketPage() {
     try {
       setIsActionLoading(true);
       setErrorMessage("");
+      setInfoMessage("");
 
       await deleteWatchlistItem(secid);
 
       await loadWatchlist({ showLoader: false });
+
+      setInfoMessage(`${secid} удален из watchlist.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -85,10 +139,13 @@ export function MarketPage() {
   async function handleRefreshTicker(secid) {
     try {
       setErrorMessage("");
+      setInfoMessage("");
       setRefreshingTickers((currentTickers) => [...currentTickers, secid]);
 
       await refreshTickerPrice(secid);
       await loadWatchlist({ showLoader: false });
+
+      setInfoMessage(`${secid}: цена обновлена.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -107,19 +164,99 @@ export function MarketPage() {
 
     try {
       setErrorMessage("");
+      setInfoMessage("");
       setIsRefreshAllLoading(true);
       setRefreshingTickers(tickers);
 
-      await Promise.all(
-        tickers.map((secid) => refreshTickerPrice(secid))
-      );
+      await Promise.all(tickers.map((secid) => refreshTickerPrice(secid)));
 
       await loadWatchlist({ showLoader: false });
+
+      setInfoMessage("Все цены обновлены.");
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
       setIsRefreshAllLoading(false);
       setRefreshingTickers([]);
+    }
+  }
+
+  async function handleCreateAlert(event) {
+    event.preventDefault();
+
+    const normalizedTicker = alertTicker.trim().toUpperCase();
+    const normalizedTargetPrice = alertTargetPrice.trim();
+
+    if (!normalizedTicker) {
+      setErrorMessage("Введите тикер для alert.");
+      return;
+    }
+
+    if (!normalizedTargetPrice) {
+      setErrorMessage("Введите целевую цену.");
+      return;
+    }
+
+    try {
+      setIsActionLoading(true);
+      setErrorMessage("");
+      setInfoMessage("");
+
+      await createAlert({
+        secid: normalizedTicker,
+        condition: alertCondition,
+        targetPrice: normalizedTargetPrice,
+      });
+
+      setAlertTicker("");
+      setAlertCondition("above");
+      setAlertTargetPrice("");
+
+      await loadAlerts();
+
+      setInfoMessage(`Alert для ${normalizedTicker} создан.`);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsActionLoading(false);
+    }
+  }
+
+  async function handleCheckAlert(alertId) {
+    try {
+      setErrorMessage("");
+      setInfoMessage("");
+      setCheckingAlerts((currentAlerts) => [...currentAlerts, alertId]);
+
+      const result = await checkAlert(alertId);
+
+      await Promise.all([loadAlerts(), loadAlertEvents()]);
+
+      setInfoMessage(result.message || "Alert проверен.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setCheckingAlerts((currentAlerts) =>
+        currentAlerts.filter((id) => id !== alertId)
+      );
+    }
+  }
+
+  async function handleDeleteAlert(alertId) {
+    try {
+      setIsActionLoading(true);
+      setErrorMessage("");
+      setInfoMessage("");
+
+      await deleteAlert(alertId);
+
+      await Promise.all([loadAlerts(), loadAlertEvents()]);
+
+      setInfoMessage(`Alert #${alertId} удален.`);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsActionLoading(false);
     }
   }
 
@@ -131,10 +268,24 @@ export function MarketPage() {
         <p className="eyebrow">FinLab</p>
         <h1>Market Watchlist</h1>
         <p className="heroText">
-          Frontend уже работает с FastAPI backend: загружает watchlist, добавляет
-          тикеры, удаляет их и обновляет цены через MOEX.
+          Frontend работает с FastAPI backend: watchlist, обновление цен и
+          price alerts.
         </p>
       </section>
+
+      {errorMessage && (
+        <div className="error pageMessage">
+          <strong>Ошибка</strong>
+          <p>{errorMessage}</p>
+        </div>
+      )}
+
+      {infoMessage && !errorMessage && (
+        <div className="success pageMessage">
+          <strong>Готово</strong>
+          <p>{infoMessage}</p>
+        </div>
+      )}
 
       <section className="card">
         <div className="cardHeader">
@@ -165,22 +316,12 @@ export function MarketPage() {
             disabled={isActionLoading || isRefreshAllLoading}
           />
 
-          <button
-            type="submit"
-            disabled={isActionLoading || isRefreshAllLoading}
-          >
+          <button type="submit" disabled={isActionLoading || isRefreshAllLoading}>
             {isActionLoading ? "Loading..." : "Add ticker"}
           </button>
         </form>
 
         {isLoading && <p className="status">Загрузка watchlist...</p>}
-
-        {errorMessage && (
-          <div className="error">
-            <strong>Ошибка</strong>
-            <p>{errorMessage}</p>
-          </div>
-        )}
 
         {!isLoading && !errorMessage && watchlist.length === 0 && (
           <p className="status">Watchlist пока пустой.</p>
@@ -242,6 +383,160 @@ export function MarketPage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="cardHeader">
+          <div>
+            <h2>Price Alerts</h2>
+            <p>Создай правило: цена выше или ниже заданного уровня.</p>
+          </div>
+        </div>
+
+        <form className="alertForm" onSubmit={handleCreateAlert}>
+          <input
+            value={alertTicker}
+            onChange={(event) => setAlertTicker(event.target.value)}
+            placeholder="Ticker: SBER"
+            disabled={isActionLoading}
+          />
+
+          <select
+            value={alertCondition}
+            onChange={(event) => setAlertCondition(event.target.value)}
+            disabled={isActionLoading}
+          >
+            <option value="above">above</option>
+            <option value="below">below</option>
+          </select>
+
+          <input
+            value={alertTargetPrice}
+            onChange={(event) => setAlertTargetPrice(event.target.value)}
+            placeholder="Target price"
+            disabled={isActionLoading}
+          />
+
+          <button type="submit" disabled={isActionLoading}>
+            {isActionLoading ? "Loading..." : "Create alert"}
+          </button>
+        </form>
+
+        {alerts.length === 0 && (
+          <p className="status">Активных или созданных alert’ов пока нет.</p>
+        )}
+
+        {alerts.length > 0 && (
+          <div className="tableWrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Ticker</th>
+                  <th>Condition</th>
+                  <th>Target</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {alerts.map((alert) => {
+                  const isChecking = checkingAlerts.includes(alert.id);
+
+                  return (
+                    <tr key={alert.id}>
+                      <td>#{alert.id}</td>
+                      <td className="ticker">{alert.secid}</td>
+                      <td>{alert.condition}</td>
+                      <td>{formatPrice(alert.target_price)}</td>
+                      <td>
+                        <span
+                          className={
+                            alert.is_active ? "statusBadge" : "statusBadge muted"
+                          }
+                        >
+                          {alert.is_active ? "active" : "inactive"}
+                        </span>
+                      </td>
+                      <td>{formatDate(alert.created_at)}</td>
+                      <td>
+                        <div className="rowActions">
+                          <button
+                            type="button"
+                            disabled={
+                              isActionLoading ||
+                              isChecking ||
+                              !alert.is_active
+                            }
+                            onClick={() => handleCheckAlert(alert.id)}
+                          >
+                            {isChecking ? "..." : "Check"}
+                          </button>
+
+                          <button
+                            className="dangerButton"
+                            type="button"
+                            disabled={isActionLoading || isChecking}
+                            onClick={() => handleDeleteAlert(alert.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="cardHeader">
+          <div>
+            <h2>Alert Events</h2>
+            <p>История срабатываний alert’ов.</p>
+          </div>
+        </div>
+
+        {alertEvents.length === 0 && (
+          <p className="status">Событий пока нет.</p>
+        )}
+
+        {alertEvents.length > 0 && (
+          <div className="tableWrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Alert</th>
+                  <th>Ticker</th>
+                  <th>Price</th>
+                  <th>Target</th>
+                  <th>Condition</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {alertEvents.map((event) => (
+                  <tr key={event.id}>
+                    <td>#{event.id}</td>
+                    <td>#{event.alert_id}</td>
+                    <td className="ticker">{event.secid}</td>
+                    <td>{formatPrice(event.price)}</td>
+                    <td>{formatPrice(event.target_price)}</td>
+                    <td>{event.condition}</td>
+                    <td>{formatDate(event.created_at)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

@@ -187,3 +187,72 @@ button:disabled {
 .rowActions button {
   padding: 8px 12px;
 }
+
+.pageMessage {
+  margin-bottom: 20px;
+}
+
+.success {
+  padding: 16px;
+  border: 1px solid #14532d;
+  border-radius: 16px;
+  background: #052e16;
+  color: #bbf7d0;
+}
+
+.success p {
+  margin: 8px 0 0;
+}
+
+.alertForm {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 160px minmax(180px, 1fr) auto;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.alertForm input,
+.alertForm select {
+  padding: 12px 14px;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #020617;
+  color: #e5e7eb;
+  outline: none;
+}
+
+.alertForm input:focus,
+.alertForm select:focus {
+  border-color: #38bdf8;
+}
+
+.alertForm input::placeholder {
+  color: #64748b;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #064e3b;
+  color: #a7f3d0;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.statusBadge.muted {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.card + .card {
+  margin-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .alertForm {
+    grid-template-columns: 1fr;
+  }
+}

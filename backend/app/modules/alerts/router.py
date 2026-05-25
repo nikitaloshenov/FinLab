@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -28,6 +28,7 @@ from app.modules.market.moex_client import (
     MoexTickerNotFoundError,
 )
 from app.modules.market.service import MarketPriceUnavailableError
+from app.shared.errors import raise_api_error
 
 
 router = APIRouter(
@@ -54,13 +55,29 @@ def create_alert(
             target_price=alert_data.target_price,
         )
     except MoexTickerNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="ticker_not_found",
+            message=str(error),
+        )
     except MarketPriceUnavailableError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="market_price_unavailable",
+            message=str(error),
+        )
     except MoexClientError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="moex_client_error",
+            message=str(error),
+        )
     except AlertTickerCreateError as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
+        raise_api_error(
+            status_code=500,
+            code="alert_ticker_create_error",
+            message=str(error),
+        )
 
 
 @router.get("/events", response_model=list[AlertEventRead])
@@ -84,9 +101,17 @@ def check_alert(
             alert_id=alert_id,
         )
     except AlertNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="alert_not_found",
+            message=str(error),
+        )
     except AlertLatestPriceNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="alert_latest_price_not_found",
+            message=str(error),
+        )
 
 
 @router.patch("/{alert_id}/disable", response_model=AlertDisableResult)
@@ -100,7 +125,11 @@ def disable_alert(
             alert_id=alert_id,
         )
     except AlertNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="alert_not_found",
+            message=str(error),
+        )
 
 
 @router.delete("/{alert_id}", response_model=AlertDeleteResult)
@@ -114,4 +143,8 @@ def delete_alert(
             alert_id=alert_id,
         )
     except AlertNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="alert_not_found",
+            message=str(error),
+        )

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,6 +20,7 @@ from app.modules.market.service import (
     list_tickers,
     refresh_ticker_price,
 )
+from app.shared.errors import raise_api_error
 
 
 router = APIRouter(
@@ -38,9 +39,17 @@ def get_market_ticker_from_moex(secid: str):
     try:
         return get_ticker_from_moex(secid)
     except MoexTickerNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="ticker_not_found",
+            message=str(error),
+        )
     except MoexClientError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="moex_client_error",
+            message=str(error),
+        )
 
 
 @router.post("/tickers/{secid}/refresh", response_model=TickerRefreshResult)
@@ -51,11 +60,23 @@ def refresh_market_ticker_price(
     try:
         return refresh_ticker_price(db, secid)
     except MoexTickerNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="ticker_not_found",
+            message=str(error),
+        )
     except MarketPriceUnavailableError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="market_price_unavailable",
+            message=str(error),
+        )
     except MoexClientError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="moex_client_error",
+            message=str(error),
+        )
 
 
 @router.get("/tickers/{secid}/price", response_model=TickerPriceRead)
@@ -66,4 +87,8 @@ def get_market_ticker_price(
     try:
         return get_saved_ticker_price(db, secid)
     except MarketLatestPriceNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="market_latest_price_not_found",
+            message=str(error),
+        )

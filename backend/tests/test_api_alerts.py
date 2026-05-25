@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.modules.alerts import router as alerts_router
+from app.modules.alerts.service import AlertLatestPriceNotFoundError, AlertNotFoundError
 
 
 def make_alert(alert_id=1):
@@ -108,6 +109,40 @@ def test_check_alert_returns_check_result(client, monkeypatch):
     assert data["alert_id"] == 1
     assert data["triggered"] is True
     assert str(data["current_price"]) == "323.78"
+
+
+def test_check_alert_not_found_returns_api_error(client, monkeypatch):
+    def fake_check_price_alert(db, alert_id):
+        raise AlertNotFoundError(f"Alert {alert_id} not found")
+
+    monkeypatch.setattr(alerts_router, "check_price_alert", fake_check_price_alert)
+
+    response = client.post("/api/v1/alerts/999/check")
+
+    assert response.status_code == 404
+
+    detail = response.json()["detail"]
+
+    assert detail["code"] == "alert_not_found"
+    assert "999" in detail["message"]
+    assert detail["details"] == {}
+
+
+def test_check_alert_latest_price_not_found_returns_api_error(client, monkeypatch):
+    def fake_check_price_alert(db, alert_id):
+        raise AlertLatestPriceNotFoundError(f"Latest price for alert {alert_id} not found")
+
+    monkeypatch.setattr(alerts_router, "check_price_alert", fake_check_price_alert)
+
+    response = client.post("/api/v1/alerts/1/check")
+
+    assert response.status_code == 404
+
+    detail = response.json()["detail"]
+
+    assert detail["code"] == "alert_latest_price_not_found"
+    assert "Latest price" in detail["message"]
+    assert detail["details"] == {}
 
 
 def test_check_active_alerts_returns_batch_summary(client, monkeypatch):

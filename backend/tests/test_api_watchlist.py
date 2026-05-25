@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.modules.watchlist import router as watchlist_router
+from app.modules.watchlist.service import WatchlistItemNotFoundError
 
 
 def test_get_watchlist_returns_items(client, monkeypatch):
@@ -74,6 +75,27 @@ def test_delete_watchlist_item_returns_delete_result(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"secid": "SBER", "deleted": True}
+
+
+def test_delete_watchlist_item_not_found_returns_api_error(client, monkeypatch):
+    def fake_remove_ticker_from_watchlist(db, secid):
+        raise WatchlistItemNotFoundError(f"Ticker {secid} not found in watchlist")
+
+    monkeypatch.setattr(
+        watchlist_router,
+        "remove_ticker_from_watchlist",
+        fake_remove_ticker_from_watchlist,
+    )
+
+    response = client.delete("/api/v1/watchlist/items/SBER")
+
+    assert response.status_code == 404
+
+    detail = response.json()["detail"]
+
+    assert detail["code"] == "watchlist_item_not_found"
+    assert "SBER" in detail["message"]
+    assert detail["details"] == {}
 
 
 def test_refresh_watchlist_prices_returns_batch_summary(client, monkeypatch):

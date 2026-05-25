@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -21,6 +21,7 @@ from app.modules.watchlist.service import (
     refresh_watchlist_prices,
     remove_ticker_from_watchlist,
 )
+from app.shared.errors import raise_api_error
 
 
 router = APIRouter(
@@ -45,13 +46,29 @@ def add_watchlist_item(
             secid=item_data.secid,
         )
     except MoexTickerNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="ticker_not_found",
+            message=str(error),
+        )
     except MarketPriceUnavailableError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="market_price_unavailable",
+            message=str(error),
+        )
     except MoexClientError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise_api_error(
+            status_code=502,
+            code="moex_client_error",
+            message=str(error),
+        )
     except WatchlistTickerCreateError as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
+        raise_api_error(
+            status_code=500,
+            code="watchlist_ticker_create_error",
+            message=str(error),
+        )
 
 
 @router.post("/refresh-prices", response_model=WatchlistRefreshResult)
@@ -70,4 +87,8 @@ def delete_watchlist_item_by_secid(
             secid=secid,
         )
     except WatchlistItemNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise_api_error(
+            status_code=404,
+            code="watchlist_item_not_found",
+            message=str(error),
+        )

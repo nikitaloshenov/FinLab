@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -18,6 +19,9 @@ from app.modules.alerts.repository import (
 )
 from app.modules.market.repository import get_ticker_by_secid
 from app.modules.market.service import refresh_ticker_price
+
+
+logger = logging.getLogger(__name__)
 
 
 class AlertNotFoundError(Exception):
@@ -48,6 +52,13 @@ def create_price_alert(
 ) -> dict[str, Any]:
     normalized_secid = secid.upper().strip()
 
+    logger.info(
+        "Creating price alert: secid=%s condition=%s target_price=%s",
+        normalized_secid,
+        condition,
+        target_price,
+    )
+
     ticker = get_ticker_by_secid(db, normalized_secid)
 
     if ticker is None:
@@ -55,6 +66,10 @@ def create_price_alert(
         ticker = get_ticker_by_secid(db, normalized_secid)
 
     if ticker is None:
+        logger.warning(
+            "Price alert creation failed, ticker was not created: secid=%s",
+            normalized_secid,
+        )
         raise AlertTickerCreateError(
             f"Ticker {normalized_secid} was not created"
         )
@@ -71,9 +86,19 @@ def create_price_alert(
     created_alert = get_alert_by_id(db, alert.id)
 
     if created_alert is None:
+        logger.warning(
+            "Price alert creation failed after commit: secid=%s",
+            normalized_secid,
+        )
         raise AlertTickerCreateError(
             f"Alert for ticker {normalized_secid} was not created"
         )
+
+    logger.info(
+        "Price alert created: alert_id=%s secid=%s",
+        created_alert.id,
+        normalized_secid,
+    )
 
     return alert_to_dict(created_alert)
 
@@ -130,9 +155,15 @@ def check_price_alert(
     db: Session,
     alert_id: int,
 ) -> dict[str, Any]:
+    logger.info("Checking price alert: alert_id=%s", alert_id)
+
     alert = get_alert_by_id(db, alert_id)
 
     if alert is None:
+        logger.warning(
+            "Price alert check failed, alert not found: alert_id=%s",
+            alert_id,
+        )
         raise AlertNotFoundError(
             f"Alert {alert_id} not found"
         )
@@ -143,6 +174,10 @@ def check_price_alert(
     )
 
     if latest_price is None:
+        logger.warning(
+            "Price alert check failed, latest price not found: alert_id=%s",
+            alert_id,
+        )
         raise AlertLatestPriceNotFoundError(
             f"Latest price for alert {alert_id} not found"
         )
@@ -150,6 +185,7 @@ def check_price_alert(
     current_price = latest_price.price
 
     if not alert.is_active:
+        logger.info("Alert is inactive: alert_id=%s", alert_id)
         return {
             "alert_id": alert.id,
             "secid": alert.ticker.secid,
@@ -168,6 +204,12 @@ def check_price_alert(
     )
 
     if not triggered:
+        logger.info(
+            "Alert condition not met: alert_id=%s current_price=%s target_price=%s",
+            alert_id,
+            current_price,
+            alert.target_price,
+        )
         return {
             "alert_id": alert.id,
             "secid": alert.ticker.secid,
@@ -198,6 +240,14 @@ def check_price_alert(
 
     db.commit()
 
+    logger.info(
+        "Alert triggered: alert_id=%s secid=%s current_price=%s target_price=%s",
+        alert.id,
+        alert.ticker.secid,
+        current_price,
+        alert.target_price,
+    )
+
     return {
         "alert_id": alert.id,
         "secid": alert.ticker.secid,
@@ -213,6 +263,8 @@ def check_price_alert(
 def check_active_price_alerts(db: Session) -> dict[str, Any]:
     active_alerts = get_active_alerts(db)
     active_alert_ids = [alert.id for alert in active_alerts]
+
+    logger.info("Checking active alerts: total=%s", len(active_alert_ids))
 
     results = []
     checked_count = 0
@@ -243,6 +295,12 @@ def check_active_price_alerts(db: Session) -> dict[str, Any]:
             db.rollback()
             failed_count += 1
 
+            logger.warning(
+                "Active alert check failed: alert_id=%s error=%s",
+                alert_id,
+                error,
+            )
+
             results.append(
                 {
                     "alert_id": alert_id,
@@ -262,6 +320,12 @@ def check_active_price_alerts(db: Session) -> dict[str, Any]:
             db.rollback()
             failed_count += 1
 
+            logger.warning(
+                "Active alert check failed: alert_id=%s error=%s",
+                alert_id,
+                error,
+            )
+
             results.append(
                 {
                     "alert_id": alert_id,
@@ -276,6 +340,14 @@ def check_active_price_alerts(db: Session) -> dict[str, Any]:
                     "error": f"Unexpected error: {error}",
                 }
             )
+
+    logger.info(
+        "Active alerts check completed: total=%s checked=%s triggered=%s failed=%s",
+        len(active_alert_ids),
+        checked_count,
+        triggered_count,
+        failed_count,
+    )
 
     return {
         "total": len(active_alert_ids),

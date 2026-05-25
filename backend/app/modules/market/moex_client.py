@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal, InvalidOperation
 from time import sleep
 from typing import Any
@@ -5,6 +6,9 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class MoexClientError(Exception):
@@ -37,6 +41,14 @@ class MoexClient:
     def fetch_ticker(self, secid: str) -> dict[str, Any]:
         normalized_secid = secid.upper().strip()
 
+        logger.info(
+            "Fetching MOEX ticker: secid=%s board=%s market=%s engine=%s",
+            normalized_secid,
+            self.board,
+            self.market,
+            self.engine,
+        )
+
         url = (
             f"{self.base_url}"
             f"/engines/{self.engine}"
@@ -64,6 +76,14 @@ class MoexClient:
         security = securities[0]
         market_row = self._find_market_row(marketdata, normalized_secid)
 
+        price = self._extract_price(market_row)
+
+        logger.info(
+            "MOEX ticker fetched: secid=%s price=%s",
+            normalized_secid,
+            price,
+        )
+
         return {
             "secid": security.get("SECID") or normalized_secid,
             "short_name": security.get("SHORTNAME"),
@@ -72,7 +92,7 @@ class MoexClient:
             "market": self.market,
             "engine": self.engine,
             "currency": self._extract_currency(security, market_row),
-            "price": self._extract_price(market_row),
+            "price": price,
         }
 
     def _get_json_with_retries(
@@ -87,21 +107,48 @@ class MoexClient:
                 return response.json()
             except httpx.HTTPError as error:
                 if attempt == self.retry_attempts:
+                    logger.error(
+                        "MOEX request failed after retries: attempts=%s error=%s",
+                        self.retry_attempts,
+                        error,
+                    )
                     raise MoexClientError(
                         "MOEX request failed after "
                         f"{self.retry_attempts} attempts: {error}"
                     ) from error
 
+                logger.warning(
+                    "MOEX request failed, retrying: attempt=%s/%s error=%s",
+                    attempt,
+                    self.retry_attempts,
+                    error,
+                )
                 sleep(self.retry_delay_seconds)
             except ValueError as error:
                 if attempt == self.retry_attempts:
+                    logger.error(
+                        "MOEX returned invalid JSON after retries: attempts=%s error=%s",
+                        self.retry_attempts,
+                        error,
+                    )
                     raise MoexClientError(
                         "MOEX returned invalid JSON after "
                         f"{self.retry_attempts} attempts: {error}"
                     ) from error
 
+                logger.warning(
+                    "MOEX returned invalid JSON, retrying: attempt=%s/%s error=%s",
+                    attempt,
+                    self.retry_attempts,
+                    error,
+                )
                 sleep(self.retry_delay_seconds)
 
+        logger.error(
+            "MOEX request failed after retries: attempts=%s error=%s",
+            self.retry_attempts,
+            "unknown error",
+        )
         raise MoexClientError(
             "MOEX request failed after "
             f"{self.retry_attempts} attempts: unknown error"

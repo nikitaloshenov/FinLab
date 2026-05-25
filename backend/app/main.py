@@ -5,10 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.logging import setup_logging
 from app.modules.alerts.router import router as alerts_router
 from app.modules.market.router import router as market_router
 from app.modules.watchlist.router import router as watchlist_router
 
+
+setup_logging()
 
 app = FastAPI(
     title=settings.app_name,

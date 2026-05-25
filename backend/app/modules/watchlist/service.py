@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -13,6 +14,9 @@ from app.modules.watchlist.repository import (
     get_watchlist_items,
     watchlist_item_to_dict,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class WatchlistItemNotFoundError(Exception):
@@ -98,6 +102,8 @@ def remove_ticker_from_watchlist(db: Session, secid: str) -> dict[str, Any]:
 def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
     watchlist_items = get_watchlist_items(db)
 
+    logger.info("Refreshing watchlist prices: total=%s", len(watchlist_items))
+
     results = []
     updated_count = 0
     failed_count = 0
@@ -112,6 +118,12 @@ def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
             )
 
             updated_count += 1
+
+            logger.info(
+                "Watchlist ticker refreshed: secid=%s price=%s",
+                secid,
+                refresh_result["price"],
+            )
 
             results.append(
                 {
@@ -130,6 +142,12 @@ def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
             db.rollback()
             failed_count += 1
 
+            logger.warning(
+                "Watchlist ticker refresh failed: secid=%s error=%s",
+                secid,
+                error,
+            )
+
             results.append(
                 {
                     "secid": secid,
@@ -143,6 +161,12 @@ def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
             db.rollback()
             failed_count += 1
 
+            logger.warning(
+                "Watchlist ticker refresh failed: secid=%s error=%s",
+                secid,
+                error,
+            )
+
             results.append(
                 {
                     "secid": secid,
@@ -151,6 +175,13 @@ def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
                     "error": f"Unexpected error: {error}",
                 }
             )
+
+    logger.info(
+        "Watchlist refresh completed: total=%s updated=%s failed=%s",
+        len(watchlist_items),
+        updated_count,
+        failed_count,
+    )
 
     return {
         "total": len(watchlist_items),

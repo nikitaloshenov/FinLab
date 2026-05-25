@@ -1,8 +1,13 @@
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.modules.market.moex_client import MoexClient
+from app.modules.market.moex_client import (
+    MoexClient,
+    MoexClientError,
+    MoexTickerNotFoundError,
+)
 from app.modules.market.repository import (
     create_price,
     create_ticker,
@@ -12,6 +17,9 @@ from app.modules.market.repository import (
     update_ticker_from_moex_data,
     upsert_latest_price,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class MarketPriceUnavailableError(Exception):
@@ -32,11 +40,33 @@ def get_ticker_from_moex(secid: str) -> dict[str, Any]:
 
 
 def refresh_ticker_price(db: Session, secid: str) -> dict[str, Any]:
-    moex_data = get_ticker_from_moex(secid)
+    normalized_secid = secid.upper().strip()
+
+    logger.info("Refreshing ticker price: secid=%s", normalized_secid)
+
+    try:
+        moex_data = get_ticker_from_moex(secid)
+    except MoexTickerNotFoundError:
+        logger.warning(
+            "Ticker refresh failed, ticker not found: secid=%s",
+            normalized_secid,
+        )
+        raise
+    except MoexClientError as error:
+        logger.error(
+            "Ticker refresh failed, MOEX client error: secid=%s error=%s",
+            normalized_secid,
+            error,
+        )
+        raise
 
     price = moex_data.get("price")
 
     if price is None:
+        logger.warning(
+            "Ticker refresh failed, price unavailable: secid=%s",
+            normalized_secid,
+        )
         raise MarketPriceUnavailableError(
             f"MOEX did not return price for ticker {secid.upper()}"
         )
@@ -65,6 +95,13 @@ def refresh_ticker_price(db: Session, secid: str) -> dict[str, Any]:
     db.commit()
     db.refresh(ticker)
     db.refresh(latest_price)
+
+    logger.info(
+        "Ticker price refreshed: secid=%s price=%s saved=%s",
+        ticker.secid,
+        latest_price.price,
+        True,
+    )
 
     return {
         "secid": ticker.secid,

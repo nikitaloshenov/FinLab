@@ -88,6 +88,14 @@ class MoexClient:
                     ) from error
 
                 sleep(0.5)
+            except ValueError as error:
+                if attempt == attempts:
+                    raise MoexClientError(
+                        "MOEX returned invalid JSON after "
+                        f"{attempts} attempts: {error}"
+                    ) from error
+
+                sleep(0.5)
 
         raise MoexClientError(
             f"MOEX request failed after {attempts} attempts: unknown error"

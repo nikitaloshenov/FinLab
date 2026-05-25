@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+from time import sleep
 from typing import Any
 
 import httpx
@@ -44,13 +45,7 @@ class MoexClient:
             "lang": "ru",
         }
 
-        try:
-            response = httpx.get(url, params=params, timeout=10.0)
-            response.raise_for_status()
-        except httpx.HTTPError as error:
-            raise MoexClientError(f"MOEX request failed: {error}") from error
-
-        payload = response.json()
+        payload = self._get_json_with_retries(url=url, params=params)
 
         securities = self._table_to_dicts(payload.get("securities", {}))
         marketdata = self._table_to_dicts(payload.get("marketdata", {}))
@@ -73,6 +68,30 @@ class MoexClient:
             "currency": self._extract_currency(security, market_row),
             "price": self._extract_price(market_row),
         }
+
+    def _get_json_with_retries(
+        self,
+        url: str,
+        params: dict[str, str],
+    ) -> dict[str, Any]:
+        attempts = 2
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = httpx.get(url, params=params, timeout=15.0)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPError as error:
+                if attempt == attempts:
+                    raise MoexClientError(
+                        f"MOEX request failed after {attempts} attempts: {error}"
+                    ) from error
+
+                sleep(0.5)
+
+        raise MoexClientError(
+            f"MOEX request failed after {attempts} attempts: unknown error"
+        )
 
     def _table_to_dicts(self, table: dict[str, Any]) -> list[dict[str, Any]]:
         columns = table.get("columns") or []

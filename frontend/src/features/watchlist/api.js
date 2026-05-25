@@ -18,3 +18,9 @@ export function deleteWatchlistItem(secid) {
     method: "DELETE",
   });
 }
+
+export function refreshWatchlistPrices() {
+  return apiRequest("/watchlist/refresh-prices", {
+    method: "POST",
+  });
+}

@@ -21,6 +21,12 @@ export function checkAlert(alertId) {
   });
 }
 
+export function checkActiveAlerts() {
+  return apiRequest("/alerts/check-active", {
+    method: "POST",
+  });
+}
+
 export function deleteAlert(alertId) {
   return apiRequest(`/alerts/${alertId}`, {
     method: "DELETE",

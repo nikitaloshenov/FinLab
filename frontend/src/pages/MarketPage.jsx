@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  checkActiveAlerts,
   checkAlert,
   createAlert,
   deleteAlert,
@@ -12,6 +13,7 @@ import {
   addWatchlistItem,
   deleteWatchlistItem,
   getWatchlist,
+  refreshWatchlistPrices,
 } from "../features/watchlist/api.js";
 
 export function MarketPage() {
@@ -169,11 +171,11 @@ export function MarketPage() {
       setIsRefreshAllLoading(true);
       setRefreshingTickers(tickers);
 
-      await Promise.all(tickers.map((secid) => refreshTickerPrice(secid)));
+      const result = await refreshWatchlistPrices();
 
       await loadWatchlist({ showLoader: false });
 
-      setInfoMessage("Все цены обновлены.");
+      setInfoMessage(buildWatchlistRefreshMessage(result));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -247,7 +249,6 @@ export function MarketPage() {
     const activeAlerts = alerts.filter((alert) => alert.is_active);
 
     if (activeAlerts.length === 0) {
-      setErrorMessage("");
       setInfoMessage("Активных alert’ов для проверки нет.");
       return;
     }
@@ -260,17 +261,11 @@ export function MarketPage() {
       setIsCheckingAllAlerts(true);
       setCheckingAlerts(activeAlertIds);
 
-      const results = await Promise.all(
-        activeAlerts.map((alert) => checkAlert(alert.id))
-      );
+      const result = await checkActiveAlerts();
 
       await Promise.all([loadAlerts(), loadAlertEvents()]);
 
-      const triggeredCount = results.filter((result) => result.triggered).length;
-
-      setInfoMessage(
-        `Проверено alert’ов: ${activeAlerts.length}. Сработало: ${triggeredCount}.`
-      );
+      setInfoMessage(buildAlertBatchCheckMessage(result));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -298,7 +293,7 @@ export function MarketPage() {
   }
 
   const hasWatchlistItems = watchlist.length > 0;
-  const hasActiveAlerts = alerts.some((alert) => alert.is_active);
+  const activeAlertsCount = alerts.filter((alert) => alert.is_active).length;
 
   return (
     <main className="page">
@@ -440,7 +435,7 @@ export function MarketPage() {
               isLoading ||
               isActionLoading ||
               isCheckingAllAlerts ||
-              !hasActiveAlerts
+              activeAlertsCount === 0
             }
             onClick={handleCheckAllActiveAlerts}
           >
@@ -600,6 +595,42 @@ export function MarketPage() {
       </section>
     </main>
   );
+}
+
+function buildWatchlistRefreshMessage(result) {
+  const message = `Обновлено тикеров: ${result.updated}/${result.total}. Ошибок: ${result.failed}.`;
+
+  if (result.failed <= 0) {
+    return message;
+  }
+
+  const failedItems = (result.items || [])
+    .filter((item) => !item.success)
+    .map((item) => `${item.secid}: ${item.error || "unknown error"}`);
+
+  if (failedItems.length === 0) {
+    return message;
+  }
+
+  return `${message} Не обновились: ${failedItems.join("; ")}.`;
+}
+
+function buildAlertBatchCheckMessage(result) {
+  const message = `Проверено alert’ов: ${result.checked}/${result.total}. Сработало: ${result.triggered}. Ошибок: ${result.failed}.`;
+
+  if (result.failed <= 0) {
+    return message;
+  }
+
+  const failedItems = (result.items || [])
+    .filter((item) => !item.success)
+    .map((item) => `#${item.alert_id}: ${item.error || "unknown error"}`);
+
+  if (failedItems.length === 0) {
+    return message;
+  }
+
+  return `${message} Ошибки: ${failedItems.join("; ")}.`;
 }
 
 function formatDate(value) {

@@ -120,6 +120,14 @@ Frontend может работать без `frontend/.env`: для `VITE_API_BA
 
 ### 1. Поднять PostgreSQL
 
+Перед запуском backend можно поднять PostgreSQL и проверить Docker одной командой:
+
+```powershell
+.\scripts\start-dev.ps1
+```
+
+Или запустить PostgreSQL напрямую:
+
 ```powershell
 docker compose up -d postgres
 ```

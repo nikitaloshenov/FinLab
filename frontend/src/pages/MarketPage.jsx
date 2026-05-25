@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { AlertEventsSection } from "../features/alerts/AlertEventsSection.jsx";
+import { AlertsSection } from "../features/alerts/AlertsSection.jsx";
 import {
   checkActiveAlerts,
   checkAlert,
@@ -9,12 +11,17 @@ import {
   getAlerts,
 } from "../features/alerts/api.js";
 import { refreshTickerPrice } from "../features/market/api.js";
+import { WatchlistSection } from "../features/watchlist/WatchlistSection.jsx";
 import {
   addWatchlistItem,
   deleteWatchlistItem,
   getWatchlist,
   refreshWatchlistPrices,
 } from "../features/watchlist/api.js";
+import {
+  buildAlertBatchCheckMessage,
+  buildWatchlistRefreshMessage,
+} from "../shared/lib/batchMessages.js";
 
 export function MarketPage() {
   const [watchlist, setWatchlist] = useState([]);
@@ -292,9 +299,6 @@ export function MarketPage() {
     }
   }
 
-  const hasWatchlistItems = watchlist.length > 0;
-  const activeAlertsCount = alerts.filter((alert) => alert.is_active).length;
-
   return (
     <main className="page">
       <section className="hero">
@@ -320,340 +324,40 @@ export function MarketPage() {
         </div>
       )}
 
-      <section className="card">
-        <div className="cardHeader">
-          <div>
-            <h2>Watchlist</h2>
-            <p>Тикеры, которые сейчас отслеживаются в системе.</p>
-          </div>
+      <WatchlistSection
+        watchlist={watchlist}
+        newTicker={newTicker}
+        onNewTickerChange={setNewTicker}
+        onAddTicker={handleAddTicker}
+        onDeleteTicker={handleDeleteTicker}
+        onRefreshTicker={handleRefreshTicker}
+        onRefreshAllPrices={handleRefreshAllPrices}
+        isLoading={isLoading}
+        isActionLoading={isActionLoading}
+        isRefreshAllLoading={isRefreshAllLoading}
+        refreshingTickers={refreshingTickers}
+        errorMessage={errorMessage}
+      />
 
-          <button
-            type="button"
-            disabled={
-              isLoading ||
-              isActionLoading ||
-              isRefreshAllLoading ||
-              !hasWatchlistItems
-            }
-            onClick={handleRefreshAllPrices}
-          >
-            {isRefreshAllLoading ? "Refreshing..." : "Refresh all prices"}
-          </button>
-        </div>
+      <AlertsSection
+        alerts={alerts}
+        alertTicker={alertTicker}
+        alertCondition={alertCondition}
+        alertTargetPrice={alertTargetPrice}
+        onAlertTickerChange={setAlertTicker}
+        onAlertConditionChange={setAlertCondition}
+        onAlertTargetPriceChange={setAlertTargetPrice}
+        onCreateAlert={handleCreateAlert}
+        onCheckAlert={handleCheckAlert}
+        onCheckAllActiveAlerts={handleCheckAllActiveAlerts}
+        onDeleteAlert={handleDeleteAlert}
+        isLoading={isLoading}
+        isActionLoading={isActionLoading}
+        isCheckingAllAlerts={isCheckingAllAlerts}
+        checkingAlerts={checkingAlerts}
+      />
 
-        <form className="tickerForm" onSubmit={handleAddTicker}>
-          <input
-            value={newTicker}
-            onChange={(event) => setNewTicker(event.target.value)}
-            placeholder="Например: SBER"
-            disabled={isActionLoading || isRefreshAllLoading}
-          />
-
-          <button type="submit" disabled={isActionLoading || isRefreshAllLoading}>
-            {isActionLoading ? "Loading..." : "Add ticker"}
-          </button>
-        </form>
-
-        {isLoading && <p className="status">Загрузка watchlist...</p>}
-
-        {!isLoading && !errorMessage && watchlist.length === 0 && (
-          <p className="status">Watchlist пока пустой.</p>
-        )}
-
-        {!isLoading && watchlist.length > 0 && (
-          <div className="tableWrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ticker</th>
-                  <th>Name</th>
-                  <th>Last price</th>
-                  <th>Added at</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {watchlist.map((item) => {
-                  const isTickerRefreshing = refreshingTickers.includes(
-                    item.secid
-                  );
-
-                  return (
-                    <tr key={item.id}>
-                      <td className="ticker">{item.secid}</td>
-                      <td>{item.short_name || "—"}</td>
-                      <td>{formatPrice(item.latest_price)}</td>
-                      <td>{formatDate(item.created_at)}</td>
-                      <td>
-                        <div className="rowActions">
-                          <button
-                            type="button"
-                            disabled={
-                              isActionLoading ||
-                              isRefreshAllLoading ||
-                              isTickerRefreshing
-                            }
-                            onClick={() => handleRefreshTicker(item.secid)}
-                          >
-                            {isTickerRefreshing ? "..." : "Refresh"}
-                          </button>
-
-                          <button
-                            className="dangerButton"
-                            type="button"
-                            disabled={
-                              isActionLoading ||
-                              isRefreshAllLoading ||
-                              isTickerRefreshing
-                            }
-                            onClick={() => handleDeleteTicker(item.secid)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="cardHeader">
-          <div>
-            <h2>Price Alerts</h2>
-            <p>Создай правило: цена выше или ниже заданного уровня.</p>
-          </div>
-
-          <button
-            type="button"
-            disabled={
-              isLoading ||
-              isActionLoading ||
-              isCheckingAllAlerts ||
-              activeAlertsCount === 0
-            }
-            onClick={handleCheckAllActiveAlerts}
-          >
-            {isCheckingAllAlerts ? "Checking..." : "Check all active alerts"}
-          </button>
-        </div>
-
-        <form className="alertForm" onSubmit={handleCreateAlert}>
-          <input
-            value={alertTicker}
-            onChange={(event) => setAlertTicker(event.target.value)}
-            placeholder="Ticker: SBER"
-            disabled={isActionLoading}
-          />
-
-          <select
-            value={alertCondition}
-            onChange={(event) => setAlertCondition(event.target.value)}
-            disabled={isActionLoading}
-          >
-            <option value="above">above</option>
-            <option value="below">below</option>
-          </select>
-
-          <input
-            value={alertTargetPrice}
-            onChange={(event) => setAlertTargetPrice(event.target.value)}
-            placeholder="Target price"
-            disabled={isActionLoading}
-          />
-
-          <button type="submit" disabled={isActionLoading}>
-            {isActionLoading ? "Loading..." : "Create alert"}
-          </button>
-        </form>
-
-        {alerts.length === 0 && (
-          <p className="status">Активных или созданных alert’ов пока нет.</p>
-        )}
-
-        {alerts.length > 0 && (
-          <div className="tableWrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Ticker</th>
-                  <th>Condition</th>
-                  <th>Target</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {alerts.map((alert) => {
-                  const isChecking = checkingAlerts.includes(alert.id);
-
-                  return (
-                    <tr key={alert.id}>
-                      <td>#{alert.id}</td>
-                      <td className="ticker">{alert.secid}</td>
-                      <td>{alert.condition}</td>
-                      <td>{formatPrice(alert.target_price)}</td>
-                      <td>
-                        <span
-                          className={
-                            alert.is_active ? "statusBadge" : "statusBadge muted"
-                          }
-                        >
-                          {alert.is_active ? "active" : "inactive"}
-                        </span>
-                      </td>
-                      <td>{formatDate(alert.created_at)}</td>
-                      <td>
-                        <div className="rowActions">
-                          <button
-                            type="button"
-                            disabled={
-                              isActionLoading ||
-                              isCheckingAllAlerts ||
-                              isChecking ||
-                              !alert.is_active
-                            }
-                            onClick={() => handleCheckAlert(alert.id)}
-                          >
-                            {isChecking ? "..." : "Check"}
-                          </button>
-
-                          <button
-                            className="dangerButton"
-                            type="button"
-                            disabled={
-                              isActionLoading ||
-                              isCheckingAllAlerts ||
-                              isChecking
-                            }
-                            onClick={() => handleDeleteAlert(alert.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="cardHeader">
-          <div>
-            <h2>Alert Events</h2>
-            <p>История срабатываний alert’ов.</p>
-          </div>
-        </div>
-
-        {alertEvents.length === 0 && (
-          <p className="status">Событий пока нет.</p>
-        )}
-
-        {alertEvents.length > 0 && (
-          <div className="tableWrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Alert</th>
-                  <th>Ticker</th>
-                  <th>Price</th>
-                  <th>Target</th>
-                  <th>Condition</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {alertEvents.map((event) => (
-                  <tr key={event.id}>
-                    <td>#{event.id}</td>
-                    <td>#{event.alert_id}</td>
-                    <td className="ticker">{event.secid}</td>
-                    <td>{formatPrice(event.price)}</td>
-                    <td>{formatPrice(event.target_price)}</td>
-                    <td>{event.condition}</td>
-                    <td>{formatDate(event.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <AlertEventsSection alertEvents={alertEvents} />
     </main>
   );
-}
-
-function buildWatchlistRefreshMessage(result) {
-  const message = `Обновлено тикеров: ${result.updated}/${result.total}. Ошибок: ${result.failed}.`;
-
-  if (result.failed <= 0) {
-    return message;
-  }
-
-  const failedItems = (result.items || [])
-    .filter((item) => !item.success)
-    .map((item) => `${item.secid}: ${item.error || "unknown error"}`);
-
-  if (failedItems.length === 0) {
-    return message;
-  }
-
-  return `${message} Не обновились: ${failedItems.join("; ")}.`;
-}
-
-function buildAlertBatchCheckMessage(result) {
-  const message = `Проверено alert’ов: ${result.checked}/${result.total}. Сработало: ${result.triggered}. Ошибок: ${result.failed}.`;
-
-  if (result.failed <= 0) {
-    return message;
-  }
-
-  const failedItems = (result.items || [])
-    .filter((item) => !item.success)
-    .map((item) => `#${item.alert_id}: ${item.error || "unknown error"}`);
-
-  if (failedItems.length === 0) {
-    return message;
-  }
-
-  return `${message} Ошибки: ${failedItems.join("; ")}.`;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleString("ru-RU");
-}
-
-function formatPrice(value) {
-  if (value === null || value === undefined || value === "") {
-    return "—";
-  }
-
-  const numberValue = Number(value);
-
-  if (Number.isNaN(numberValue)) {
-    return value;
-  }
-
-  return new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue);
 }

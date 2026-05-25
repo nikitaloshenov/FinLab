@@ -22,11 +22,17 @@ class MoexClient:
         engine: str = settings.moex_default_engine,
         market: str = settings.moex_default_market,
         board: str = settings.moex_default_board,
+        timeout_seconds: float = settings.moex_timeout_seconds,
+        retry_attempts: int = settings.moex_retry_attempts,
+        retry_delay_seconds: float = settings.moex_retry_delay_seconds,
     ):
         self.base_url = base_url.rstrip("/")
         self.engine = engine
         self.market = market
         self.board = board
+        self.timeout_seconds = timeout_seconds
+        self.retry_attempts = retry_attempts
+        self.retry_delay_seconds = retry_delay_seconds
 
     def fetch_ticker(self, secid: str) -> dict[str, Any]:
         normalized_secid = secid.upper().strip()
@@ -74,31 +80,31 @@ class MoexClient:
         url: str,
         params: dict[str, str],
     ) -> dict[str, Any]:
-        attempts = 2
-
-        for attempt in range(1, attempts + 1):
+        for attempt in range(1, self.retry_attempts + 1):
             try:
-                response = httpx.get(url, params=params, timeout=15.0)
+                response = httpx.get(url, params=params, timeout=self.timeout_seconds)
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPError as error:
-                if attempt == attempts:
+                if attempt == self.retry_attempts:
                     raise MoexClientError(
-                        f"MOEX request failed after {attempts} attempts: {error}"
+                        "MOEX request failed after "
+                        f"{self.retry_attempts} attempts: {error}"
                     ) from error
 
-                sleep(0.5)
+                sleep(self.retry_delay_seconds)
             except ValueError as error:
-                if attempt == attempts:
+                if attempt == self.retry_attempts:
                     raise MoexClientError(
                         "MOEX returned invalid JSON after "
-                        f"{attempts} attempts: {error}"
+                        f"{self.retry_attempts} attempts: {error}"
                     ) from error
 
-                sleep(0.5)
+                sleep(self.retry_delay_seconds)
 
         raise MoexClientError(
-            f"MOEX request failed after {attempts} attempts: unknown error"
+            "MOEX request failed after "
+            f"{self.retry_attempts} attempts: unknown error"
         )
 
     def _table_to_dicts(self, table: dict[str, Any]) -> list[dict[str, Any]]:

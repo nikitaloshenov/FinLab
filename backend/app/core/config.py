@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     moex_default_engine: str = "stock"
     moex_default_market: str = "shares"
     moex_default_board: str = "TQBR"
+    moex_timeout_seconds: float = 15.0
+    moex_retry_attempts: int = 2
+    moex_retry_delay_seconds: float = 0.5
 
     backend_cors_origins: str = (
         "http://localhost:5173,"

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.modules.alerts.schemas import (
+    AlertBatchCheckResult,
     AlertCheckResult,
     AlertCreate,
     AlertDeleteResult,
@@ -14,6 +15,7 @@ from app.modules.alerts.service import (
     AlertLatestPriceNotFoundError,
     AlertNotFoundError,
     AlertTickerCreateError,
+    check_active_price_alerts,
     check_price_alert,
     create_price_alert,
     disable_price_alert,
@@ -64,6 +66,11 @@ def create_alert(
 @router.get("/events", response_model=list[AlertEventRead])
 def get_alert_events_list(db: Session = Depends(get_db)):
     return list_alert_events(db)
+
+
+@router.post("/check-active", response_model=AlertBatchCheckResult)
+def check_active_alerts(db: Session = Depends(get_db)):
+    return check_active_price_alerts(db)
 
 
 @router.post("/{alert_id}/check", response_model=AlertCheckResult)

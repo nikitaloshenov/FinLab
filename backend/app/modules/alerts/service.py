@@ -10,6 +10,7 @@ from app.modules.alerts.repository import (
     create_alert_event,
     delete_alert,
     disable_alert,
+    get_active_alerts,
     get_alert_by_id,
     get_alert_events,
     get_alerts,
@@ -206,6 +207,82 @@ def check_price_alert(
         "triggered": True,
         "is_active": False,
         "message": message,
+    }
+
+
+def check_active_price_alerts(db: Session) -> dict[str, Any]:
+    active_alerts = get_active_alerts(db)
+    active_alert_ids = [alert.id for alert in active_alerts]
+
+    results = []
+    checked_count = 0
+    triggered_count = 0
+    failed_count = 0
+
+    for alert_id in active_alert_ids:
+        try:
+            check_result = check_price_alert(
+                db=db,
+                alert_id=alert_id,
+            )
+
+            checked_count += 1
+
+            if check_result["triggered"]:
+                triggered_count += 1
+
+            results.append(
+                {
+                    **check_result,
+                    "success": True,
+                    "error": None,
+                }
+            )
+
+        except (AlertNotFoundError, AlertLatestPriceNotFoundError) as error:
+            db.rollback()
+            failed_count += 1
+
+            results.append(
+                {
+                    "alert_id": alert_id,
+                    "secid": None,
+                    "condition": None,
+                    "target_price": None,
+                    "current_price": None,
+                    "triggered": False,
+                    "is_active": None,
+                    "success": False,
+                    "message": None,
+                    "error": str(error),
+                }
+            )
+
+        except Exception as error:
+            db.rollback()
+            failed_count += 1
+
+            results.append(
+                {
+                    "alert_id": alert_id,
+                    "secid": None,
+                    "condition": None,
+                    "target_price": None,
+                    "current_price": None,
+                    "triggered": False,
+                    "is_active": None,
+                    "success": False,
+                    "message": None,
+                    "error": f"Unexpected error: {error}",
+                }
+            )
+
+    return {
+        "total": len(active_alert_ids),
+        "checked": checked_count,
+        "triggered": triggered_count,
+        "failed": failed_count,
+        "items": results,
     }
 
 

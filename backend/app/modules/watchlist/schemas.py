@@ -19,3 +19,17 @@ class WatchlistItemRead(BaseModel):
 class WatchlistDeleteResult(BaseModel):
     secid: str
     deleted: bool = True
+
+
+class WatchlistRefreshItemResult(BaseModel):
+    secid: str
+    success: bool
+    price: Decimal | None = None
+    error: str | None = None
+
+
+class WatchlistRefreshResult(BaseModel):
+    total: int
+    updated: int
+    failed: int
+    items: list[WatchlistRefreshItemResult]

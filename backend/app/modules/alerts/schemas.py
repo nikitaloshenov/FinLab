@@ -53,3 +53,24 @@ class AlertEventRead(BaseModel):
     condition: str
     message: str | None = None
     created_at: datetime
+
+
+class AlertBatchCheckItemResult(BaseModel):
+    alert_id: int
+    secid: str | None = None
+    condition: str | None = None
+    target_price: Decimal | None = None
+    current_price: Decimal | None = None
+    triggered: bool = False
+    is_active: bool | None = None
+    success: bool
+    message: str | None = None
+    error: str | None = None
+
+
+class AlertBatchCheckResult(BaseModel):
+    total: int
+    checked: int
+    triggered: int
+    failed: int
+    items: list[AlertBatchCheckItemResult]

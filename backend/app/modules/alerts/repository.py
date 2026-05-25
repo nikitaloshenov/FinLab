@@ -49,6 +49,16 @@ def get_alerts(db: Session) -> list[dict[str, Any]]:
     return [alert_to_dict(alert) for alert in alerts]
 
 
+def get_active_alerts(db: Session) -> list[Alert]:
+    return (
+        db.query(Alert)
+        .options(joinedload(Alert.ticker))
+        .filter(Alert.is_active.is_(True))
+        .order_by(Alert.created_at.asc())
+        .all()
+    )
+
+
 def get_alert_by_id(
     db: Session,
     alert_id: int,

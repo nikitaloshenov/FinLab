@@ -11,12 +11,14 @@ from app.modules.watchlist.schemas import (
     WatchlistDeleteResult,
     WatchlistItemCreate,
     WatchlistItemRead,
+    WatchlistRefreshResult,
 )
 from app.modules.watchlist.service import (
     WatchlistItemNotFoundError,
     WatchlistTickerCreateError,
     add_ticker_to_watchlist,
     list_watchlist_items,
+    refresh_watchlist_prices,
     remove_ticker_from_watchlist,
 )
 
@@ -50,6 +52,11 @@ def add_watchlist_item(
         raise HTTPException(status_code=502, detail=str(error)) from error
     except WatchlistTickerCreateError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
+
+
+@router.post("/refresh-prices", response_model=WatchlistRefreshResult)
+def refresh_watchlist_item_prices(db: Session = Depends(get_db)):
+    return refresh_watchlist_prices(db)
 
 
 @router.delete("/items/{secid}", response_model=WatchlistDeleteResult)

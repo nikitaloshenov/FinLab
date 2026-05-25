@@ -2,8 +2,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.modules.market.moex_client import MoexClientError, MoexTickerNotFoundError
 from app.modules.market.repository import get_ticker_by_secid
-from app.modules.market.service import refresh_ticker_price
+from app.modules.market.service import MarketPriceUnavailableError, refresh_ticker_price
 from app.modules.watchlist.repository import (
     create_watchlist_item,
     delete_watchlist_item,
@@ -91,4 +92,69 @@ def remove_ticker_from_watchlist(db: Session, secid: str) -> dict[str, Any]:
     return {
         "secid": normalized_secid,
         "deleted": True,
+    }
+
+
+def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
+    watchlist_items = get_watchlist_items(db)
+
+    results = []
+    updated_count = 0
+    failed_count = 0
+
+    for item in watchlist_items:
+        secid = item["secid"]
+
+        try:
+            refresh_result = refresh_ticker_price(
+                db=db,
+                secid=secid,
+            )
+
+            updated_count += 1
+
+            results.append(
+                {
+                    "secid": secid,
+                    "success": True,
+                    "price": refresh_result["price"],
+                    "error": None,
+                }
+            )
+
+        except (
+            MoexTickerNotFoundError,
+            MarketPriceUnavailableError,
+            MoexClientError,
+        ) as error:
+            db.rollback()
+            failed_count += 1
+
+            results.append(
+                {
+                    "secid": secid,
+                    "success": False,
+                    "price": None,
+                    "error": str(error),
+                }
+            )
+
+        except Exception as error:
+            db.rollback()
+            failed_count += 1
+
+            results.append(
+                {
+                    "secid": secid,
+                    "success": False,
+                    "price": None,
+                    "error": f"Unexpected error: {error}",
+                }
+            )
+
+    return {
+        "total": len(watchlist_items),
+        "updated": updated_count,
+        "failed": failed_count,
+        "items": results,
     }

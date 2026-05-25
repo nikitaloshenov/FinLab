@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: FinLab
+      APP_ENV: test
+      API_V1_PREFIX: /api/v1
+      DATABASE_URL: postgresql+psycopg2://finlab:finlab@localhost:5432/finlab
+      MOEX_BASE_URL: https://iss.moex.com/iss
+      MOEX_DEFAULT_ENGINE: stock
+      MOEX_DEFAULT_MARKET: shares
+      MOEX_DEFAULT_BOARD: TQBR
+      MOEX_TIMEOUT_SECONDS: 15
+      MOEX_RETRY_ATTEMPTS: 2
+      MOEX_RETRY_DELAY_SECONDS: 0.5
+      BACKEND_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run backend tests
+        working-directory: backend
+        run: python -m pytest
+
+  frontend-build:
+    runs-on: ubuntu-latest
+
+    env:
+      VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build

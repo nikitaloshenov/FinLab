@@ -276,6 +276,48 @@ button:disabled {
   margin-top: 24px;
 }
 
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.overviewCard {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  background: #020617;
+}
+
+.overviewLabel,
+.overviewHint {
+  display: block;
+  color: #94a3b8;
+}
+
+.overviewLabel {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.overviewValue {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #e5e7eb;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.overviewHint {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .priceHistoryMessage {
   margin-bottom: 20px;
 }
@@ -391,6 +433,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .overviewGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .priceHistoryLayout {
     grid-template-columns: 1fr;
   }
@@ -401,6 +447,10 @@ button:disabled {
 }
 
 @media (max-width: 560px) {
+  .overviewGrid {
+    grid-template-columns: 1fr;
+  }
+
   .priceHistoryStats {
     grid-template-columns: 1fr;
   }

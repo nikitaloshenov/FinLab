@@ -14,6 +14,7 @@ import {
   getTickerPriceHistory,
   refreshTickerPrice,
 } from "../features/market/api.js";
+import { MarketOverviewSection } from "../features/market/MarketOverviewSection.jsx";
 import { PriceHistorySection } from "../features/market/PriceHistorySection.jsx";
 import { WatchlistSection } from "../features/watchlist/WatchlistSection.jsx";
 import {
@@ -401,6 +402,15 @@ export function MarketPage() {
           <p>{infoMessage}</p>
         </div>
       )}
+
+      <MarketOverviewSection
+        watchlist={watchlist}
+        alerts={alerts}
+        alertEvents={alertEvents}
+        selectedTicker={selectedTicker}
+        priceHistory={priceHistory}
+        isLoading={isLoading}
+      />
 
       <WatchlistSection
         watchlist={watchlist}

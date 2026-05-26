@@ -154,3 +154,32 @@ def get_latest_price_by_secid(
         "received_at": latest_price.received_at,
         "market_time": latest_price.market_time,
     }
+
+
+def get_price_history_by_secid(
+    db: Session,
+    secid: str,
+    limit: int,
+) -> list[dict[str, Any]] | None:
+    ticker = get_ticker_by_secid(db, secid)
+
+    if ticker is None:
+        return None
+
+    prices = (
+        db.query(Price)
+        .filter(Price.ticker_id == ticker.id)
+        .order_by(Price.received_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "price": price.price,
+            "source": price.source,
+            "received_at": price.received_at,
+            "market_time": price.market_time,
+        }
+        for price in reversed(prices)
+    ]

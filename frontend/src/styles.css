@@ -125,6 +125,23 @@ td {
   font-weight: 800;
 }
 
+.tickerButton {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #38bdf8;
+  font-weight: 800;
+}
+
+.tickerButton:hover {
+  background: transparent;
+  color: #7dd3fc;
+}
+
+.tickerButton.active {
+  color: #facc15;
+}
+
 .tickerForm {
   display: flex;
   gap: 12px;
@@ -251,8 +268,72 @@ button:disabled {
   margin-top: 24px;
 }
 
+.priceHistoryMessage {
+  margin-bottom: 20px;
+}
+
+.priceHistoryLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.priceChart {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  background: #020617;
+}
+
+.priceChart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.priceChartGrid {
+  stroke: #334155;
+  stroke-width: 1;
+}
+
+.priceChartLine {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.priceChartPoint {
+  fill: #facc15;
+  stroke: #020617;
+  stroke-width: 2;
+}
+
+.priceChartMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.priceHistoryTable th,
+.priceHistoryTable td {
+  padding: 12px 10px;
+}
+
 @media (max-width: 900px) {
   .alertForm {
+    grid-template-columns: 1fr;
+  }
+
+  .priceHistoryLayout {
     grid-template-columns: 1fr;
   }
 }

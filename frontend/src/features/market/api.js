@@ -5,3 +5,9 @@ export function refreshTickerPrice(secid) {
     method: "POST",
   });
 }
+
+export function getTickerPriceHistory(secid, limit = 50) {
+  return apiRequest(
+    `/market/tickers/${encodeURIComponent(secid)}/prices?limit=${limit}`
+  );
+}

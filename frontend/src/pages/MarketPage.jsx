@@ -10,7 +10,11 @@ import {
   getAlertEvents,
   getAlerts,
 } from "../features/alerts/api.js";
-import { refreshTickerPrice } from "../features/market/api.js";
+import {
+  getTickerPriceHistory,
+  refreshTickerPrice,
+} from "../features/market/api.js";
+import { PriceHistorySection } from "../features/market/PriceHistorySection.jsx";
 import { WatchlistSection } from "../features/watchlist/WatchlistSection.jsx";
 import {
   addWatchlistItem,
@@ -27,8 +31,10 @@ export function MarketPage() {
   const [watchlist, setWatchlist] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [alertEvents, setAlertEvents] = useState([]);
+  const [priceHistory, setPriceHistory] = useState([]);
 
   const [newTicker, setNewTicker] = useState("");
+  const [selectedTicker, setSelectedTicker] = useState("");
 
   const [alertTicker, setAlertTicker] = useState("");
   const [alertCondition, setAlertCondition] = useState("above");
@@ -38,12 +44,14 @@ export function MarketPage() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isRefreshAllLoading, setIsRefreshAllLoading] = useState(false);
   const [isCheckingAllAlerts, setIsCheckingAllAlerts] = useState(false);
+  const [isPriceHistoryLoading, setIsPriceHistoryLoading] = useState(false);
 
   const [refreshingTickers, setRefreshingTickers] = useState([]);
   const [checkingAlerts, setCheckingAlerts] = useState([]);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+  const [priceHistoryErrorMessage, setPriceHistoryErrorMessage] = useState("");
 
   async function loadWatchlist({ showLoader = true } = {}) {
     try {
@@ -56,8 +64,10 @@ export function MarketPage() {
       const data = await getWatchlist();
 
       setWatchlist(data);
+      return data;
     } catch (error) {
       setErrorMessage(error.message);
+      return [];
     } finally {
       if (showLoader) {
         setIsLoading(false);
@@ -75,6 +85,30 @@ export function MarketPage() {
     setAlertEvents(data);
   }
 
+  async function loadTickerPriceHistory(secid) {
+    if (!secid) {
+      setPriceHistory([]);
+      setPriceHistoryErrorMessage("");
+      return [];
+    }
+
+    try {
+      setIsPriceHistoryLoading(true);
+      setPriceHistoryErrorMessage("");
+
+      const data = await getTickerPriceHistory(secid, 50);
+
+      setPriceHistory(data);
+      return data;
+    } catch (error) {
+      setPriceHistory([]);
+      setPriceHistoryErrorMessage(error.message);
+      return [];
+    } finally {
+      setIsPriceHistoryLoading(false);
+    }
+  }
+
   async function loadPageData() {
     try {
       setIsLoading(true);
@@ -89,6 +123,13 @@ export function MarketPage() {
       setWatchlist(watchlistData);
       setAlerts(alertsData);
       setAlertEvents(alertEventsData);
+
+      const initialTicker = selectedTicker || watchlistData[0]?.secid || "";
+
+      if (initialTicker) {
+        setSelectedTicker(initialTicker);
+        await loadTickerPriceHistory(initialTicker);
+      }
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -119,6 +160,8 @@ export function MarketPage() {
 
       setNewTicker("");
       await loadWatchlist({ showLoader: false });
+      setSelectedTicker(normalizedTicker);
+      await loadTickerPriceHistory(normalizedTicker);
 
       setInfoMessage(`${normalizedTicker} добавлен в watchlist.`);
     } catch (error) {
@@ -136,7 +179,20 @@ export function MarketPage() {
 
       await deleteWatchlistItem(secid);
 
-      await loadWatchlist({ showLoader: false });
+      const updatedWatchlist = await loadWatchlist({ showLoader: false });
+
+      if (selectedTicker === secid) {
+        const nextTicker = updatedWatchlist[0]?.secid || "";
+
+        setSelectedTicker(nextTicker);
+
+        if (nextTicker) {
+          await loadTickerPriceHistory(nextTicker);
+        } else {
+          setPriceHistory([]);
+          setPriceHistoryErrorMessage("");
+        }
+      }
 
       setInfoMessage(`${secid} удален из watchlist.`);
     } catch (error) {
@@ -154,6 +210,10 @@ export function MarketPage() {
 
       await refreshTickerPrice(secid);
       await loadWatchlist({ showLoader: false });
+
+      if (selectedTicker === secid) {
+        await loadTickerPriceHistory(secid);
+      }
 
       setInfoMessage(`${secid}: цена обновлена.`);
     } catch (error) {
@@ -181,6 +241,10 @@ export function MarketPage() {
       const result = await refreshWatchlistPrices();
 
       await loadWatchlist({ showLoader: false });
+
+      if (selectedTicker) {
+        await loadTickerPriceHistory(selectedTicker);
+      }
 
       setInfoMessage(buildWatchlistRefreshMessage(result));
     } catch (error) {
@@ -299,6 +363,11 @@ export function MarketPage() {
     }
   }
 
+  async function handleSelectTicker(secid) {
+    setSelectedTicker(secid);
+    await loadTickerPriceHistory(secid);
+  }
+
   return (
     <main className="page">
       <section className="hero">
@@ -332,11 +401,21 @@ export function MarketPage() {
         onDeleteTicker={handleDeleteTicker}
         onRefreshTicker={handleRefreshTicker}
         onRefreshAllPrices={handleRefreshAllPrices}
+        onSelectTicker={handleSelectTicker}
         isLoading={isLoading}
         isActionLoading={isActionLoading}
         isRefreshAllLoading={isRefreshAllLoading}
         refreshingTickers={refreshingTickers}
+        selectedTicker={selectedTicker}
         errorMessage={errorMessage}
+      />
+
+      <PriceHistorySection
+        selectedTicker={selectedTicker}
+        priceHistory={priceHistory}
+        isLoading={isPriceHistoryLoading}
+        errorMessage={priceHistoryErrorMessage}
+        onReload={() => loadTickerPriceHistory(selectedTicker)}
       />
 
       <AlertsSection

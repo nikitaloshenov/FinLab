@@ -8,10 +8,12 @@ export function WatchlistSection({
   onDeleteTicker,
   onRefreshTicker,
   onRefreshAllPrices,
+  onSelectTicker,
   isLoading,
   isActionLoading,
   isRefreshAllLoading,
   refreshingTickers,
+  selectedTicker,
   errorMessage,
 }) {
   const hasWatchlistItems = watchlist.length > 0;
@@ -78,7 +80,19 @@ export function WatchlistSection({
 
                 return (
                   <tr key={item.id}>
-                    <td className="ticker">{item.secid}</td>
+                    <td>
+                      <button
+                        className={
+                          item.secid === selectedTicker
+                            ? "tickerButton active"
+                            : "tickerButton"
+                        }
+                        type="button"
+                        onClick={() => onSelectTicker(item.secid)}
+                      >
+                        {item.secid}
+                      </button>
+                    </td>
                     <td>{item.short_name || "—"}</td>
                     <td>{formatPrice(item.latest_price)}</td>
                     <td>{formatDate(item.created_at)}</td>

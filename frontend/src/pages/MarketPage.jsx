@@ -35,6 +35,7 @@ export function MarketPage() {
 
   const [newTicker, setNewTicker] = useState("");
   const [selectedTicker, setSelectedTicker] = useState("");
+  const [priceHistoryLimit, setPriceHistoryLimit] = useState(50);
 
   const [alertTicker, setAlertTicker] = useState("");
   const [alertCondition, setAlertCondition] = useState("above");
@@ -85,7 +86,7 @@ export function MarketPage() {
     setAlertEvents(data);
   }
 
-  async function loadTickerPriceHistory(secid) {
+  async function loadTickerPriceHistory(secid, limit = priceHistoryLimit) {
     if (!secid) {
       setPriceHistory([]);
       setPriceHistoryErrorMessage("");
@@ -96,7 +97,7 @@ export function MarketPage() {
       setIsPriceHistoryLoading(true);
       setPriceHistoryErrorMessage("");
 
-      const data = await getTickerPriceHistory(secid, 50);
+      const data = await getTickerPriceHistory(secid, limit);
 
       setPriceHistory(data);
       return data;
@@ -128,7 +129,7 @@ export function MarketPage() {
 
       if (initialTicker) {
         setSelectedTicker(initialTicker);
-        await loadTickerPriceHistory(initialTicker);
+        await loadTickerPriceHistory(initialTicker, priceHistoryLimit);
       }
     } catch (error) {
       setErrorMessage(error.message);
@@ -161,7 +162,7 @@ export function MarketPage() {
       setNewTicker("");
       await loadWatchlist({ showLoader: false });
       setSelectedTicker(normalizedTicker);
-      await loadTickerPriceHistory(normalizedTicker);
+      await loadTickerPriceHistory(normalizedTicker, priceHistoryLimit);
 
       setInfoMessage(`${normalizedTicker} добавлен в watchlist.`);
     } catch (error) {
@@ -187,7 +188,7 @@ export function MarketPage() {
         setSelectedTicker(nextTicker);
 
         if (nextTicker) {
-          await loadTickerPriceHistory(nextTicker);
+          await loadTickerPriceHistory(nextTicker, priceHistoryLimit);
         } else {
           setPriceHistory([]);
           setPriceHistoryErrorMessage("");
@@ -212,7 +213,7 @@ export function MarketPage() {
       await loadWatchlist({ showLoader: false });
 
       if (selectedTicker === secid) {
-        await loadTickerPriceHistory(secid);
+        await loadTickerPriceHistory(secid, priceHistoryLimit);
       }
 
       setInfoMessage(`${secid}: цена обновлена.`);
@@ -243,7 +244,7 @@ export function MarketPage() {
       await loadWatchlist({ showLoader: false });
 
       if (selectedTicker) {
-        await loadTickerPriceHistory(selectedTicker);
+        await loadTickerPriceHistory(selectedTicker, priceHistoryLimit);
       }
 
       setInfoMessage(buildWatchlistRefreshMessage(result));
@@ -365,7 +366,15 @@ export function MarketPage() {
 
   async function handleSelectTicker(secid) {
     setSelectedTicker(secid);
-    await loadTickerPriceHistory(secid);
+    await loadTickerPriceHistory(secid, priceHistoryLimit);
+  }
+
+  async function handlePriceHistoryLimitChange(limit) {
+    setPriceHistoryLimit(limit);
+
+    if (selectedTicker) {
+      await loadTickerPriceHistory(selectedTicker, limit);
+    }
   }
 
   return (
@@ -413,9 +422,11 @@ export function MarketPage() {
       <PriceHistorySection
         selectedTicker={selectedTicker}
         priceHistory={priceHistory}
+        priceHistoryLimit={priceHistoryLimit}
         isLoading={isPriceHistoryLoading}
         errorMessage={priceHistoryErrorMessage}
-        onReload={() => loadTickerPriceHistory(selectedTicker)}
+        onLimitChange={handlePriceHistoryLimitChange}
+        onReload={() => loadTickerPriceHistory(selectedTicker, priceHistoryLimit)}
       />
 
       <AlertsSection

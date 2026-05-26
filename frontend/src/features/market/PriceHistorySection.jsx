@@ -7,11 +7,14 @@ const CHART_PADDING = 24;
 export function PriceHistorySection({
   selectedTicker,
   priceHistory,
+  priceHistoryLimit,
   isLoading,
   errorMessage,
+  onLimitChange,
   onReload,
 }) {
   const latestPoints = priceHistory.slice(-8).reverse();
+  const stats = getPriceHistoryStats(priceHistory);
 
   return (
     <section className="card">
@@ -25,17 +28,33 @@ export function PriceHistorySection({
           </p>
         </div>
 
-        <button
-          type="button"
-          disabled={!selectedTicker || isLoading}
-          onClick={onReload}
-        >
-          {isLoading ? "Loading..." : "Reload history"}
-        </button>
+        <div className="priceHistoryControls">
+          <label>
+            <span>History points</span>
+            <select
+              value={priceHistoryLimit}
+              disabled={!selectedTicker || isLoading}
+              onChange={(event) => onLimitChange(Number(event.target.value))}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            disabled={!selectedTicker || isLoading}
+            onClick={onReload}
+          >
+            {isLoading ? "Loading..." : "Reload history"}
+          </button>
+        </div>
       </div>
 
       {!selectedTicker && (
-        <p className="status">Тикер для истории пока не выбран.</p>
+        <p className="status">Выбери тикер из watchlist, чтобы посмотреть историю цен.</p>
       )}
 
       {selectedTicker && errorMessage && (
@@ -50,37 +69,57 @@ export function PriceHistorySection({
       )}
 
       {selectedTicker && !isLoading && !errorMessage && priceHistory.length === 0 && (
-        <p className="status">Истории цен для выбранного тикера пока нет.</p>
+        <p className="status">
+          Истории цен пока нет. Нажми Refresh у тикера, чтобы сохранить новую точку.
+        </p>
       )}
 
       {selectedTicker && !isLoading && !errorMessage && priceHistory.length > 0 && (
-        <div className="priceHistoryLayout">
-          <PriceHistoryChart points={priceHistory} />
-
-          <div className="tableWrapper priceHistoryTable">
-            <table>
-              <thead>
-                <tr>
-                  <th>Price</th>
-                  <th>Source</th>
-                  <th>Received</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {latestPoints.map((point) => (
-                  <tr key={`${point.received_at}-${point.price}`}>
-                    <td>{formatPrice(point.price)}</td>
-                    <td>{point.source}</td>
-                    <td>{formatDate(point.received_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          <div className="priceHistoryStats">
+            <StatItem label="Points" value={stats.points} />
+            <StatItem label="Min" value={formatPrice(stats.min)} />
+            <StatItem label="Max" value={formatPrice(stats.max)} />
+            <StatItem label="Latest" value={formatPrice(stats.latest)} />
           </div>
-        </div>
+
+          <div className="priceHistoryLayout">
+            <PriceHistoryChart points={priceHistory} />
+
+            <div className="tableWrapper priceHistoryTable">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Price</th>
+                    <th>Source</th>
+                    <th>Received</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {latestPoints.map((point) => (
+                    <tr key={`${point.received_at}-${point.price}`}>
+                      <td>{formatPrice(point.price)}</td>
+                      <td>{point.source}</td>
+                      <td>{formatDate(point.received_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </section>
+  );
+}
+
+function StatItem({ label, value }) {
+  return (
+    <div className="priceHistoryStat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -107,7 +146,6 @@ function PriceHistoryChart({ points }) {
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
   const firstPoint = coordinates[0];
-  const lastPoint = coordinates[coordinates.length - 1];
 
   return (
     <div className="priceChart">
@@ -153,12 +191,17 @@ function PriceHistoryChart({ points }) {
             />
           ))}
       </svg>
-
-      <div className="priceChartMeta">
-        <span>Min: {formatPrice(minValue)}</span>
-        <span>Max: {formatPrice(maxValue)}</span>
-        <span>Latest: {formatPrice(lastPoint.value)}</span>
-      </div>
     </div>
   );
+}
+
+function getPriceHistoryStats(points) {
+  const values = points.map((point) => Number(point.price));
+
+  return {
+    points: points.length,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    latest: values[values.length - 1],
+  };
 }

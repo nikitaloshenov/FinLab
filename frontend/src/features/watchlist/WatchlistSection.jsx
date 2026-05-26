@@ -79,7 +79,12 @@ export function WatchlistSection({
                 );
 
                 return (
-                  <tr key={item.id}>
+                  <tr
+                    className={
+                      item.secid === selectedTicker ? "table-row-active" : ""
+                    }
+                    key={item.id}
+                  >
                     <td>
                       <button
                         className={

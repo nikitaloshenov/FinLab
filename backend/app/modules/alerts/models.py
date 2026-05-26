@@ -38,6 +38,18 @@ class Alert(Base):
         nullable=False,
     )
 
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     triggered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

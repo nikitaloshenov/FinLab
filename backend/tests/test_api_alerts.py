@@ -39,6 +39,23 @@ def test_get_alerts_returns_list(client, monkeypatch):
     assert data[0]["secid"] == "SBER"
 
 
+def test_get_alerts_does_not_return_deleted_alerts(client, monkeypatch):
+    monkeypatch.setattr(
+        alerts_router,
+        "list_alerts",
+        lambda db: [make_alert(alert_id=1)],
+    )
+
+    response = client.get("/api/v1/alerts")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert [alert["id"] for alert in data] == [1]
+    assert all(alert["id"] != 2 for alert in data)
+
+
 def test_create_alert_returns_created_alert(client, monkeypatch):
     def fake_create_price_alert(db, secid, condition, target_price):
         alert = make_alert()
@@ -194,6 +211,43 @@ def test_check_active_alerts_returns_batch_summary(client, monkeypatch):
     assert data["triggered"] == 1
     assert data["failed"] == 1
     assert data["items"][1]["success"] is False
+
+
+def test_check_active_alerts_does_not_include_deleted_alerts(client, monkeypatch):
+    monkeypatch.setattr(
+        alerts_router,
+        "check_active_price_alerts",
+        lambda db: {
+            "total": 1,
+            "checked": 1,
+            "triggered": 0,
+            "failed": 0,
+            "items": [
+                {
+                    "alert_id": 1,
+                    "secid": "SBER",
+                    "condition": "above",
+                    "target_price": Decimal("300"),
+                    "current_price": Decimal("290"),
+                    "triggered": False,
+                    "is_active": True,
+                    "success": True,
+                    "message": "Alert condition is not met",
+                    "error": None,
+                }
+            ],
+        },
+    )
+
+    response = client.post("/api/v1/alerts/check-active")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 1
+    assert [item["alert_id"] for item in data["items"]] == [1]
+    assert all(item["alert_id"] != 2 for item in data["items"])
 
 
 def test_delete_alert_returns_delete_result(client, monkeypatch):

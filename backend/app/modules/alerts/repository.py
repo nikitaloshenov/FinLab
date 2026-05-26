@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -42,6 +43,7 @@ def get_alerts(db: Session) -> list[dict[str, Any]]:
     alerts = (
         db.query(Alert)
         .options(joinedload(Alert.ticker))
+        .filter(Alert.is_deleted.is_(False))
         .order_by(Alert.created_at.desc())
         .all()
     )
@@ -54,6 +56,7 @@ def get_active_alerts(db: Session) -> list[Alert]:
         db.query(Alert)
         .options(joinedload(Alert.ticker))
         .filter(Alert.is_active.is_(True))
+        .filter(Alert.is_deleted.is_(False))
         .order_by(Alert.created_at.asc())
         .all()
     )
@@ -67,6 +70,7 @@ def get_alert_by_id(
         db.query(Alert)
         .options(joinedload(Alert.ticker))
         .filter(Alert.id == alert_id)
+        .filter(Alert.is_deleted.is_(False))
         .first()
     )
 
@@ -93,9 +97,13 @@ def create_alert(
 def delete_alert(
     db: Session,
     alert: Alert,
-) -> None:
-    db.delete(alert)
+) -> Alert:
+    alert.is_deleted = True
+    alert.is_active = False
+    alert.deleted_at = datetime.now(UTC)
     db.flush()
+
+    return alert
 
 
 def disable_alert(

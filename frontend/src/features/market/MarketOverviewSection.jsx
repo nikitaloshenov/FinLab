@@ -5,15 +5,15 @@ export function MarketOverviewSection({
   alerts,
   alertEvents,
   selectedTicker,
-  priceHistory,
+  candles,
   isLoading,
 }) {
   const watchlistItems = Array.isArray(watchlist) ? watchlist : [];
   const alertItems = Array.isArray(alerts) ? alerts : [];
   const eventItems = Array.isArray(alertEvents) ? alertEvents : [];
-  const historyPoints = Array.isArray(priceHistory) ? priceHistory : [];
+  const candleItems = Array.isArray(candles) ? candles : [];
 
-  const latestPoint = historyPoints[historyPoints.length - 1];
+  const latestCandle = candleItems[candleItems.length - 1];
   const activeAlerts = alertItems.filter((alert) => alert?.is_active).length;
 
   return (
@@ -38,18 +38,18 @@ export function MarketOverviewSection({
         />
         <OverviewCard
           label="Latest selected price"
-          value={latestPoint ? formatPrice(latestPoint.price) : "—"}
+          value={latestCandle ? formatPrice(latestCandle.close) : "—"}
           hint={selectedTicker || "Тикер не выбран"}
         />
         <OverviewCard
-          label="History points"
-          value={historyPoints.length}
+          label="Candles"
+          value={candleItems.length}
           hint={selectedTicker ? `Для ${selectedTicker}` : "Нет выбранного тикера"}
         />
         <OverviewCard
           label="Last update"
-          value={latestPoint ? formatDate(latestPoint.received_at) : "—"}
-          hint="Последняя сохраненная точка"
+          value={latestCandle ? formatDate(latestCandle.begin) : "—"}
+          hint="Последняя свеча MOEX"
         />
         <OverviewCard
           label="Triggered events"

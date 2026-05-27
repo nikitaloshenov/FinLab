@@ -354,7 +354,7 @@ button:disabled {
 
 .priceHistoryStats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -383,6 +383,14 @@ button:disabled {
   font-size: 18px;
 }
 
+.priceHistoryStat.positive strong {
+  color: #86efac;
+}
+
+.priceHistoryStat.negative strong {
+  color: #fca5a5;
+}
+
 .priceHistoryLayout {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr);
@@ -407,6 +415,24 @@ button:disabled {
 .priceChartGrid {
   stroke: #334155;
   stroke-width: 1;
+}
+
+.priceChartGrid.vertical {
+  opacity: 0.45;
+}
+
+.priceChartLabel,
+.priceChartXLabel {
+  fill: #94a3b8;
+  font-size: 12px;
+}
+
+.priceChartLabel {
+  text-anchor: end;
+}
+
+.priceChartXLabel {
+  text-anchor: middle;
 }
 
 .priceChartLine {
@@ -442,7 +468,7 @@ button:disabled {
   }
 
   .priceHistoryStats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -452,6 +478,6 @@ button:disabled {
   }
 
   .priceHistoryStats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

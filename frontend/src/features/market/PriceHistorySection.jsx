@@ -1,45 +1,66 @@
 import { formatDate, formatPrice } from "../../shared/lib/formatters.js";
 
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 220;
-const CHART_PADDING = 24;
+const CHART_WIDTH = 760;
+const CHART_HEIGHT = 280;
+const CHART_PADDING = {
+  top: 20,
+  right: 24,
+  bottom: 42,
+  left: 64,
+};
 
 export function PriceHistorySection({
   selectedTicker,
-  priceHistory,
-  priceHistoryLimit,
+  candles,
+  candleInterval,
+  candleLimit,
   isLoading,
   errorMessage,
+  onIntervalChange,
   onLimitChange,
   onReload,
 }) {
-  const latestPoints = priceHistory.slice(-8).reverse();
-  const stats = getPriceHistoryStats(priceHistory);
+  const candleItems = Array.isArray(candles) ? candles : [];
+  const latestCandles = candleItems.slice(-8).reverse();
+  const stats = getCandleStats(candleItems);
 
   return (
     <section className="card">
       <div className="cardHeader">
         <div>
-          <h2>Price History</h2>
+          <h2>Market Chart</h2>
           <p>
             {selectedTicker
-              ? `История сохраненных цен для ${selectedTicker}.`
-              : "Выбери тикер в watchlist, чтобы посмотреть историю."}
+              ? `Свечи MOEX для выбранного тикера: ${selectedTicker}.`
+              : "Выбери тикер в watchlist, чтобы открыть рыночный график."}
           </p>
         </div>
 
         <div className="priceHistoryControls">
           <label>
-            <span>History points</span>
+            <span>Interval</span>
             <select
-              value={priceHistoryLimit}
+              value={candleInterval}
+              disabled={!selectedTicker || isLoading}
+              onChange={(event) => onIntervalChange(event.target.value)}
+            >
+              <option value="10m">10m</option>
+              <option value="1h">1h</option>
+              <option value="1d">1d</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Candles</span>
+            <select
+              value={candleLimit}
               disabled={!selectedTicker || isLoading}
               onChange={(event) => onLimitChange(Number(event.target.value))}
             >
-              <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
+              <option value={250}>250</option>
             </select>
           </label>
 
@@ -48,13 +69,17 @@ export function PriceHistorySection({
             disabled={!selectedTicker || isLoading}
             onClick={onReload}
           >
-            {isLoading ? "Loading..." : "Reload history"}
+            {isLoading ? "Loading..." : "Reload chart"}
           </button>
         </div>
       </div>
 
+      <p className="status priceHistoryMessage">Source: MOEX candles</p>
+
       {!selectedTicker && (
-        <p className="status">Выбери тикер из watchlist, чтобы посмотреть историю цен.</p>
+        <p className="status">
+          Выбери тикер из watchlist, чтобы посмотреть свечной market chart.
+        </p>
       )}
 
       {selectedTicker && errorMessage && (
@@ -65,43 +90,59 @@ export function PriceHistorySection({
       )}
 
       {selectedTicker && isLoading && (
-        <p className="status">Загрузка истории цен...</p>
+        <p className="status">Загрузка свечей MOEX...</p>
       )}
 
-      {selectedTicker && !isLoading && !errorMessage && priceHistory.length === 0 && (
+      {selectedTicker && !isLoading && !errorMessage && candleItems.length === 0 && (
         <p className="status">
-          Истории цен пока нет. Нажми Refresh у тикера, чтобы сохранить новую точку.
+          Свечей MOEX пока нет для выбранного тикера и интервала.
         </p>
       )}
 
-      {selectedTicker && !isLoading && !errorMessage && priceHistory.length > 0 && (
+      {selectedTicker && !isLoading && !errorMessage && candleItems.length > 0 && (
         <>
           <div className="priceHistoryStats">
-            <StatItem label="Points" value={stats.points} />
-            <StatItem label="Min" value={formatPrice(stats.min)} />
-            <StatItem label="Max" value={formatPrice(stats.max)} />
-            <StatItem label="Latest" value={formatPrice(stats.latest)} />
+            <StatItem label="Candles" value={stats.count} />
+            <StatItem label="Min close" value={formatPrice(stats.minClose)} />
+            <StatItem label="Max close" value={formatPrice(stats.maxClose)} />
+            <StatItem label="Latest close" value={formatPrice(stats.latestClose)} />
+            <StatItem
+              label="Change"
+              value={formatSignedPrice(stats.change)}
+              tone={stats.change >= 0 ? "positive" : "negative"}
+            />
+            <StatItem
+              label="Change %"
+              value={formatPercent(stats.changePercent)}
+              tone={stats.change >= 0 ? "positive" : "negative"}
+            />
           </div>
 
           <div className="priceHistoryLayout">
-            <PriceHistoryChart points={priceHistory} />
+            <MarketLineChart candles={candleItems} interval={candleInterval} />
 
             <div className="tableWrapper priceHistoryTable">
               <table>
                 <thead>
                   <tr>
-                    <th>Price</th>
-                    <th>Source</th>
-                    <th>Received</th>
+                    <th>Begin</th>
+                    <th>Open</th>
+                    <th>High</th>
+                    <th>Low</th>
+                    <th>Close</th>
+                    <th>Volume</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {latestPoints.map((point) => (
-                    <tr key={`${point.received_at}-${point.price}`}>
-                      <td>{formatPrice(point.price)}</td>
-                      <td>{point.source}</td>
-                      <td>{formatDate(point.received_at)}</td>
+                  {latestCandles.map((candle) => (
+                    <tr key={`${candle.begin}-${candle.close}`}>
+                      <td>{formatCandleTime(candle.begin, candleInterval)}</td>
+                      <td>{formatPrice(candle.open)}</td>
+                      <td>{formatPrice(candle.high)}</td>
+                      <td>{formatPrice(candle.low)}</td>
+                      <td>{formatPrice(candle.close)}</td>
+                      <td>{formatPrice(candle.volume)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -114,37 +155,42 @@ export function PriceHistorySection({
   );
 }
 
-function StatItem({ label, value }) {
+function StatItem({ label, value, tone }) {
+  const className = tone ? `priceHistoryStat ${tone}` : "priceHistoryStat";
+
   return (
-    <div className="priceHistoryStat">
+    <div className={className}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   );
 }
 
-function PriceHistoryChart({ points }) {
-  const values = points.map((point) => Number(point.price));
+function MarketLineChart({ candles, interval }) {
+  const values = candles.map((candle) => Number(candle.close));
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const valueRange = maxValue - minValue;
-  const drawableWidth = CHART_WIDTH - CHART_PADDING * 2;
-  const drawableHeight = CHART_HEIGHT - CHART_PADDING * 2;
+  const paddingValue = minValue === maxValue ? Math.max(minValue * 0.01, 1) : 0;
+  const axisMin = minValue - paddingValue;
+  const axisMax = maxValue + paddingValue;
+  const valueRange = axisMax - axisMin || 1;
+  const drawableWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
+  const drawableHeight = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
 
   const coordinates = values.map((value, index) => {
     const x =
-      points.length === 1
-        ? CHART_WIDTH / 2
-        : CHART_PADDING + (index / (points.length - 1)) * drawableWidth;
-    const ratio = valueRange === 0 ? 0.5 : (value - minValue) / valueRange;
-    const y = CHART_HEIGHT - CHART_PADDING - ratio * drawableHeight;
+      candles.length === 1
+        ? CHART_PADDING.left + drawableWidth / 2
+        : CHART_PADDING.left + (index / (candles.length - 1)) * drawableWidth;
+    const ratio = (value - axisMin) / valueRange;
+    const y = CHART_HEIGHT - CHART_PADDING.bottom - ratio * drawableHeight;
 
     return { x, y, value };
   });
 
-  const polylinePoints = coordinates
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
+  const linePoints = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+  const yTicks = buildYTicks(axisMin, axisMax);
+  const xTicks = buildXTicks(candles);
   const firstPoint = coordinates[0];
 
   return (
@@ -152,25 +198,52 @@ function PriceHistoryChart({ points }) {
       <svg
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         role="img"
-        aria-label="Price history chart"
+        aria-label="MOEX candles close price chart"
       >
-        <line
-          className="priceChartGrid"
-          x1={CHART_PADDING}
-          y1={CHART_PADDING}
-          x2={CHART_PADDING}
-          y2={CHART_HEIGHT - CHART_PADDING}
-        />
-        <line
-          className="priceChartGrid"
-          x1={CHART_PADDING}
-          y1={CHART_HEIGHT - CHART_PADDING}
-          x2={CHART_WIDTH - CHART_PADDING}
-          y2={CHART_HEIGHT - CHART_PADDING}
-        />
+        {yTicks.map((tick) => {
+          const ratio = (tick - axisMin) / valueRange;
+          const y = CHART_HEIGHT - CHART_PADDING.bottom - ratio * drawableHeight;
+
+          return (
+            <g key={tick}>
+              <line
+                className="priceChartGrid"
+                x1={CHART_PADDING.left}
+                y1={y}
+                x2={CHART_WIDTH - CHART_PADDING.right}
+                y2={y}
+              />
+              <text className="priceChartLabel" x={CHART_PADDING.left - 10} y={y + 4}>
+                {formatPrice(tick)}
+              </text>
+            </g>
+          );
+        })}
+
+        {xTicks.map((tick) => {
+          const x =
+            candles.length === 1
+              ? CHART_PADDING.left + drawableWidth / 2
+              : CHART_PADDING.left + (tick.index / (candles.length - 1)) * drawableWidth;
+
+          return (
+            <g key={`${tick.index}-${tick.label}`}>
+              <line
+                className="priceChartGrid vertical"
+                x1={x}
+                y1={CHART_PADDING.top}
+                x2={x}
+                y2={CHART_HEIGHT - CHART_PADDING.bottom}
+              />
+              <text className="priceChartXLabel" x={x} y={CHART_HEIGHT - 14}>
+                {formatCandleTime(tick.begin, interval)}
+              </text>
+            </g>
+          );
+        })}
 
         {coordinates.length > 1 ? (
-          <polyline className="priceChartLine" points={polylinePoints} />
+          <polyline className="priceChartLine" points={linePoints} />
         ) : (
           <circle
             className="priceChartPoint"
@@ -187,7 +260,7 @@ function PriceHistoryChart({ points }) {
               key={`${point.x}-${point.y}`}
               cx={point.x}
               cy={point.y}
-              r="3"
+              r="2.5"
             />
           ))}
       </svg>
@@ -195,13 +268,85 @@ function PriceHistoryChart({ points }) {
   );
 }
 
-function getPriceHistoryStats(points) {
-  const values = points.map((point) => Number(point.price));
+function getCandleStats(candles) {
+  const closeValues = candles.map((candle) => Number(candle.close));
+  const firstClose = closeValues[0];
+  const latestClose = closeValues[closeValues.length - 1];
+  const change = latestClose - firstClose;
+  const changePercent = firstClose === 0 ? 0 : (change / firstClose) * 100;
 
   return {
-    points: points.length,
-    min: Math.min(...values),
-    max: Math.max(...values),
-    latest: values[values.length - 1],
+    count: candles.length,
+    minClose: Math.min(...closeValues),
+    maxClose: Math.max(...closeValues),
+    latestClose,
+    change,
+    changePercent,
   };
+}
+
+function buildYTicks(minValue, maxValue) {
+  const ticks = [];
+  const tickCount = 5;
+  const step = (maxValue - minValue) / (tickCount - 1 || 1);
+
+  for (let index = 0; index < tickCount; index += 1) {
+    ticks.push(minValue + step * index);
+  }
+
+  return ticks;
+}
+
+function buildXTicks(candles) {
+  if (candles.length === 1) {
+    return [{ index: 0, begin: candles[0].begin }];
+  }
+
+  const indexes = [0, Math.floor((candles.length - 1) / 2), candles.length - 1];
+  const uniqueIndexes = [...new Set(indexes)];
+
+  return uniqueIndexes.map((index) => ({
+    index,
+    begin: candles[index].begin,
+  }));
+}
+
+function formatCandleTime(value, interval) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  if (interval === "1d") {
+    return date.toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+  }
+
+  return date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatSignedPrice(value) {
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatPrice(value)}`;
+}
+
+function formatPercent(value) {
+  const prefix = value > 0 ? "+" : "";
+
+  return `${prefix}${new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)}%`;
 }

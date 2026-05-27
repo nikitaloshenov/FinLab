@@ -62,3 +62,13 @@ class TickerPriceHistoryItem(BaseModel):
     source: str
     received_at: datetime
     market_time: datetime | None = None
+
+
+class TickerCandleResponse(BaseModel):
+    begin: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+    value: Decimal

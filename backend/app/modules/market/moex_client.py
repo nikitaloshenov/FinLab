@@ -20,6 +20,12 @@ class MoexTickerNotFoundError(MoexClientError):
 
 
 class MoexClient:
+    CANDLE_INTERVALS = {
+        "10m": 10,
+        "1h": 60,
+        "1d": 24,
+    }
+
     def __init__(
         self,
         base_url: str = settings.moex_base_url,
@@ -94,6 +100,57 @@ class MoexClient:
             "currency": self._extract_currency(security, market_row),
             "price": price,
         }
+
+    def fetch_candles(
+        self,
+        secid: str,
+        interval: str,
+        from_date: str,
+        till_date: str,
+    ) -> list[dict[str, Any]]:
+        normalized_secid = secid.upper().strip()
+        moex_interval = self.CANDLE_INTERVALS[interval]
+
+        logger.info(
+            "Fetching MOEX candles: secid=%s interval=%s from=%s till=%s",
+            normalized_secid,
+            interval,
+            from_date,
+            till_date,
+        )
+
+        url = (
+            f"{self.base_url}"
+            f"/engines/{self.engine}"
+            f"/markets/{self.market}"
+            f"/securities/{normalized_secid}"
+            f"/candles.json"
+        )
+
+        params = {
+            "iss.meta": "off",
+            "interval": str(moex_interval),
+            "from": from_date,
+            "till": till_date,
+        }
+
+        payload = self._get_json_with_retries(url=url, params=params)
+        candle_rows = self._table_to_dicts(payload.get("candles", {}))
+
+        candles = [
+            candle
+            for candle in (self._normalize_candle_row(row) for row in candle_rows)
+            if candle is not None
+        ]
+
+        logger.info(
+            "MOEX candles fetched: secid=%s interval=%s candles=%s",
+            normalized_secid,
+            interval,
+            len(candles),
+        )
+
+        return candles
 
     def _get_json_with_retries(
         self,
@@ -200,6 +257,31 @@ class MoexClient:
             return security.get("FACEUNIT")
 
         return None
+
+    def _normalize_candle_row(self, row: dict[str, Any]) -> dict[str, Any] | None:
+        begin = row.get("begin") or row.get("BEGIN")
+        open_price = self._to_decimal(row.get("open") or row.get("OPEN"))
+        high_price = self._to_decimal(row.get("high") or row.get("HIGH"))
+        low_price = self._to_decimal(row.get("low") or row.get("LOW"))
+        close_price = self._to_decimal(row.get("close") or row.get("CLOSE"))
+
+        if not begin or any(
+            value is None
+            for value in (open_price, high_price, low_price, close_price)
+        ):
+            return None
+
+        return {
+            "begin": begin,
+            "open": open_price,
+            "high": high_price,
+            "low": low_price,
+            "close": close_price,
+            "volume": self._to_decimal(row.get("volume") or row.get("VOLUME"))
+            or Decimal("0"),
+            "value": self._to_decimal(row.get("value") or row.get("VALUE"))
+            or Decimal("0"),
+        }
 
     def _to_decimal(self, value: Any) -> Decimal | None:
         if value is None or value == "":

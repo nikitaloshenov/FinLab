@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from app.modules.market.moex_client import (
 )
 from app.modules.market.schemas import (
     MoexTickerData,
+    TickerCandleResponse,
     TickerListItem,
     TickerPriceHistoryItem,
     TickerPriceRead,
@@ -18,6 +21,7 @@ from app.modules.market.service import (
     MarketPriceUnavailableError,
     MarketTickerNotFoundError,
     get_saved_ticker_price,
+    get_ticker_candles,
     get_ticker_from_moex,
     get_ticker_price_history,
     list_tickers,
@@ -113,5 +117,31 @@ def get_market_ticker_price_history(
         raise_api_error(
             status_code=404,
             code="ticker_not_found",
+            message=str(error),
+        )
+
+
+@router.get("/tickers/{secid}/candles", response_model=list[TickerCandleResponse])
+def get_market_ticker_candles(
+    secid: str,
+    interval: Literal["10m", "1h", "1d"] = "1d",
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    try:
+        return get_ticker_candles(
+            secid=secid,
+            interval=interval,
+            limit=limit,
+        )
+    except MoexTickerNotFoundError as error:
+        raise_api_error(
+            status_code=404,
+            code="ticker_not_found",
+            message=str(error),
+        )
+    except MoexClientError as error:
+        raise_api_error(
+            status_code=502,
+            code="moex_client_error",
             message=str(error),
         )

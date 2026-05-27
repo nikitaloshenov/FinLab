@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -33,6 +34,13 @@ class MarketLatestPriceNotFoundError(Exception):
 
 class MarketTickerNotFoundError(Exception):
     pass
+
+
+CANDLE_LOOKBACK_DAYS = {
+    "10m": 7,
+    "1h": 30,
+    "1d": 365,
+}
 
 
 def list_tickers(db: Session) -> list[dict[str, Any]]:
@@ -148,3 +156,39 @@ def get_ticker_price_history(
         )
 
     return history
+
+
+def get_ticker_candles(
+    secid: str,
+    interval: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    normalized_secid = secid.upper().strip()
+
+    if interval not in CANDLE_LOOKBACK_DAYS:
+        raise ValueError(f"Unsupported candle interval: {interval}")
+
+    today = datetime.now(UTC).date()
+    from_date = today - timedelta(days=CANDLE_LOOKBACK_DAYS[interval])
+
+    moex_client = MoexClient()
+
+    try:
+        moex_client.fetch_ticker(normalized_secid)
+    except MoexTickerNotFoundError:
+        logger.warning(
+            "Ticker candles fetch failed, ticker not found: secid=%s",
+            normalized_secid,
+        )
+        raise
+
+    candles = moex_client.fetch_candles(
+        secid=normalized_secid,
+        interval=interval,
+        from_date=from_date.isoformat(),
+        till_date=today.isoformat(),
+    )
+
+    sorted_candles = sorted(candles, key=lambda candle: candle["begin"])
+
+    return sorted_candles[-limit:]

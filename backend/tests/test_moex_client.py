@@ -35,6 +35,33 @@ def make_moex_payload():
     }
 
 
+def make_moex_candles_payload():
+    return {
+        "candles": {
+            "columns": [
+                "begin",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "value",
+            ],
+            "data": [
+                [
+                    "2026-05-26 10:00:00",
+                    390,
+                    391,
+                    389,
+                    390.5,
+                    123456,
+                    12345678.9,
+                ]
+            ],
+        }
+    }
+
+
 def test_fetch_ticker_retries_after_http_error(monkeypatch):
     calls = []
 
@@ -93,3 +120,48 @@ def test_fetch_ticker_raises_moex_client_error_for_invalid_json(monkeypatch):
         client.fetch_ticker("SBER")
 
     assert len(calls) == 2
+
+
+def test_fetch_candles_parses_columns_and_data(monkeypatch):
+    calls = []
+
+    def fake_get(*args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeResponse(make_moex_candles_payload())
+
+    monkeypatch.setattr(moex_client_module.httpx, "get", fake_get)
+
+    client = MoexClient(
+        base_url="https://example.test",
+        engine="stock",
+        market="shares",
+        board="TQBR",
+    )
+
+    result = client.fetch_candles(
+        secid="sber",
+        interval="10m",
+        from_date="2026-05-20",
+        till_date="2026-05-27",
+    )
+
+    assert len(calls) == 1
+
+    args, kwargs = calls[0]
+
+    assert args[0].endswith("/engines/stock/markets/shares/securities/SBER/candles.json")
+    assert kwargs["params"]["interval"] == "10"
+    assert kwargs["params"]["from"] == "2026-05-20"
+    assert kwargs["params"]["till"] == "2026-05-27"
+
+    assert result == [
+        {
+            "begin": "2026-05-26 10:00:00",
+            "open": Decimal("390"),
+            "high": Decimal("391"),
+            "low": Decimal("389"),
+            "close": Decimal("390.5"),
+            "volume": Decimal("123456"),
+            "value": Decimal("12345678.9"),
+        }
+    ]

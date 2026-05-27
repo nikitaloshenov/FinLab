@@ -11,7 +11,7 @@ import {
   getAlerts,
 } from "../features/alerts/api.js";
 import {
-  getTickerPriceHistory,
+  getTickerCandles,
   refreshTickerPrice,
 } from "../features/market/api.js";
 import { MarketOverviewSection } from "../features/market/MarketOverviewSection.jsx";
@@ -32,11 +32,12 @@ export function MarketPage() {
   const [watchlist, setWatchlist] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [alertEvents, setAlertEvents] = useState([]);
-  const [priceHistory, setPriceHistory] = useState([]);
+  const [candles, setCandles] = useState([]);
 
   const [newTicker, setNewTicker] = useState("");
   const [selectedTicker, setSelectedTicker] = useState("");
-  const [priceHistoryLimit, setPriceHistoryLimit] = useState(50);
+  const [candleInterval, setCandleInterval] = useState("1d");
+  const [candleLimit, setCandleLimit] = useState(100);
 
   const [alertTicker, setAlertTicker] = useState("");
   const [alertCondition, setAlertCondition] = useState("above");
@@ -46,14 +47,14 @@ export function MarketPage() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isRefreshAllLoading, setIsRefreshAllLoading] = useState(false);
   const [isCheckingAllAlerts, setIsCheckingAllAlerts] = useState(false);
-  const [isPriceHistoryLoading, setIsPriceHistoryLoading] = useState(false);
+  const [isCandlesLoading, setIsCandlesLoading] = useState(false);
 
   const [refreshingTickers, setRefreshingTickers] = useState([]);
   const [checkingAlerts, setCheckingAlerts] = useState([]);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
-  const [priceHistoryErrorMessage, setPriceHistoryErrorMessage] = useState("");
+  const [candlesErrorMessage, setCandlesErrorMessage] = useState("");
 
   async function loadWatchlist({ showLoader = true } = {}) {
     try {
@@ -87,27 +88,31 @@ export function MarketPage() {
     setAlertEvents(data);
   }
 
-  async function loadTickerPriceHistory(secid, limit = priceHistoryLimit) {
+  async function loadTickerCandles(
+    secid,
+    interval = candleInterval,
+    limit = candleLimit
+  ) {
     if (!secid) {
-      setPriceHistory([]);
-      setPriceHistoryErrorMessage("");
+      setCandles([]);
+      setCandlesErrorMessage("");
       return [];
     }
 
     try {
-      setIsPriceHistoryLoading(true);
-      setPriceHistoryErrorMessage("");
+      setIsCandlesLoading(true);
+      setCandlesErrorMessage("");
 
-      const data = await getTickerPriceHistory(secid, limit);
+      const data = await getTickerCandles(secid, { interval, limit });
 
-      setPriceHistory(data);
+      setCandles(data);
       return data;
     } catch (error) {
-      setPriceHistory([]);
-      setPriceHistoryErrorMessage(error.message);
+      setCandles([]);
+      setCandlesErrorMessage(error.message);
       return [];
     } finally {
-      setIsPriceHistoryLoading(false);
+      setIsCandlesLoading(false);
     }
   }
 
@@ -130,7 +135,7 @@ export function MarketPage() {
 
       if (initialTicker) {
         setSelectedTicker(initialTicker);
-        await loadTickerPriceHistory(initialTicker, priceHistoryLimit);
+        await loadTickerCandles(initialTicker, candleInterval, candleLimit);
       }
     } catch (error) {
       setErrorMessage(error.message);
@@ -163,7 +168,7 @@ export function MarketPage() {
       setNewTicker("");
       await loadWatchlist({ showLoader: false });
       setSelectedTicker(normalizedTicker);
-      await loadTickerPriceHistory(normalizedTicker, priceHistoryLimit);
+      await loadTickerCandles(normalizedTicker, candleInterval, candleLimit);
 
       setInfoMessage(`${normalizedTicker} добавлен в watchlist.`);
     } catch (error) {
@@ -189,10 +194,10 @@ export function MarketPage() {
         setSelectedTicker(nextTicker);
 
         if (nextTicker) {
-          await loadTickerPriceHistory(nextTicker, priceHistoryLimit);
+          await loadTickerCandles(nextTicker, candleInterval, candleLimit);
         } else {
-          setPriceHistory([]);
-          setPriceHistoryErrorMessage("");
+          setCandles([]);
+          setCandlesErrorMessage("");
         }
       }
 
@@ -212,10 +217,6 @@ export function MarketPage() {
 
       await refreshTickerPrice(secid);
       await loadWatchlist({ showLoader: false });
-
-      if (selectedTicker === secid) {
-        await loadTickerPriceHistory(secid, priceHistoryLimit);
-      }
 
       setInfoMessage(`${secid}: цена обновлена.`);
     } catch (error) {
@@ -243,10 +244,6 @@ export function MarketPage() {
       const result = await refreshWatchlistPrices();
 
       await loadWatchlist({ showLoader: false });
-
-      if (selectedTicker) {
-        await loadTickerPriceHistory(selectedTicker, priceHistoryLimit);
-      }
 
       setInfoMessage(buildWatchlistRefreshMessage(result));
     } catch (error) {
@@ -367,14 +364,22 @@ export function MarketPage() {
 
   async function handleSelectTicker(secid) {
     setSelectedTicker(secid);
-    await loadTickerPriceHistory(secid, priceHistoryLimit);
+    await loadTickerCandles(secid, candleInterval, candleLimit);
   }
 
-  async function handlePriceHistoryLimitChange(limit) {
-    setPriceHistoryLimit(limit);
+  async function handleCandleIntervalChange(interval) {
+    setCandleInterval(interval);
 
     if (selectedTicker) {
-      await loadTickerPriceHistory(selectedTicker, limit);
+      await loadTickerCandles(selectedTicker, interval, candleLimit);
+    }
+  }
+
+  async function handleCandleLimitChange(limit) {
+    setCandleLimit(limit);
+
+    if (selectedTicker) {
+      await loadTickerCandles(selectedTicker, candleInterval, limit);
     }
   }
 
@@ -408,7 +413,7 @@ export function MarketPage() {
         alerts={alerts}
         alertEvents={alertEvents}
         selectedTicker={selectedTicker}
-        priceHistory={priceHistory}
+        candles={candles}
         isLoading={isLoading}
       />
 
@@ -431,12 +436,16 @@ export function MarketPage() {
 
       <PriceHistorySection
         selectedTicker={selectedTicker}
-        priceHistory={priceHistory}
-        priceHistoryLimit={priceHistoryLimit}
-        isLoading={isPriceHistoryLoading}
-        errorMessage={priceHistoryErrorMessage}
-        onLimitChange={handlePriceHistoryLimitChange}
-        onReload={() => loadTickerPriceHistory(selectedTicker, priceHistoryLimit)}
+        candles={candles}
+        candleInterval={candleInterval}
+        candleLimit={candleLimit}
+        isLoading={isCandlesLoading}
+        errorMessage={candlesErrorMessage}
+        onIntervalChange={handleCandleIntervalChange}
+        onLimitChange={handleCandleLimitChange}
+        onReload={() =>
+          loadTickerCandles(selectedTicker, candleInterval, candleLimit)
+        }
       />
 
       <AlertsSection

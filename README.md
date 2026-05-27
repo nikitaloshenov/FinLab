@@ -1,6 +1,6 @@
 # FinLab — Market Watchlist & Alerts
 
-FinLab — учебное fullstack-приложение для мониторинга MOEX-тикеров. Проект позволяет вести watchlist, получать рыночные данные через MOEX ISS API, сохранять цены в PostgreSQL, создавать price alerts и смотреть историю срабатываний alert'ов через React frontend.
+FinLab — учебное fullstack-приложение для мониторинга MOEX-тикеров. Проект позволяет вести watchlist, получать рыночные данные через MOEX ISS API, хранить последнюю цену в PostgreSQL, смотреть Market Chart по MOEX candles, создавать price alerts и смотреть историю срабатываний alert'ов через React frontend.
 
 Проект находится в MVP-стадии, но уже имеет рабочий backend, frontend, PostgreSQL, Alembic migrations, batch endpoints и первые tests.
 
@@ -30,6 +30,7 @@ FinLab — учебное fullstack-приложение для монитори
 - Удалить тикер из watchlist.
 - Обновить цену одного тикера.
 - Обновить цены всех тикеров через backend batch endpoint.
+- Смотреть Market Chart по MOEX candles.
 - Создать price alert.
 - Проверить один alert.
 - Проверить все активные alerts через backend batch endpoint.
@@ -71,6 +72,7 @@ Backend организован по модульному принципу:
 - `GET /api/v1/market/tickers/{secid}/moex`
 - `POST /api/v1/market/tickers/{secid}/refresh`
 - `GET /api/v1/market/tickers/{secid}/price`
+- `GET /api/v1/market/tickers/{secid}/candles`
 
 ### Watchlist
 
@@ -170,6 +172,7 @@ python -m pytest
 - alert condition logic;
 - alert messages;
 - MOEX retry/invalid JSON handling;
+- MOEX candles API contract;
 - batch service behavior.
 
 ## Текущий статус
@@ -187,9 +190,9 @@ python -m pytest
 
 ### Позже
 
-- История цен по тикеру на frontend.
-- Графики цен.
-- Background refresh.
+- Улучшить Market Chart: hover, подсказки, дополнительные метрики.
+- Portfolio tracker.
+- Risk/analyzer module.
 - Telegram/email notifications.
 - Docker для backend/frontend.
 - Soft delete для alerts.

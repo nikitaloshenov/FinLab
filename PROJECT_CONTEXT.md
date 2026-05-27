@@ -25,7 +25,8 @@ Frontend:
 Сделать небольшую систему мониторинга рынка, где пользователь может:
 - добавлять тикеры MOEX в watchlist;
 - получать данные по тикерам из MOEX ISS API;
-- сохранять тикеры и цены в PostgreSQL;
+- сохранять тикеры и последнюю цену в PostgreSQL;
+- строить Market Chart по MOEX candles напрямую из MOEX ISS API;
 - хранить последнюю цену;
 - создавать price alerts;
 - вручную проверять alerts;
@@ -87,7 +88,6 @@ Docker compose service называется postgres.
 
 Market:
 - Ticker
-- Price
 - TickerLatestPrice
 
 Watchlist:
@@ -99,15 +99,21 @@ Alerts:
 
 MARKET MODULE
 
-Market отвечает за тикеры, цены и работу с MOEX.
+Market отвечает за тикеры, latest price, MOEX candles и работу с MOEX.
 
 MOEX client получает данные из MOEX ISS API.
 
 Refresh тикера должен:
 - получить данные из MOEX;
 - создать тикер, если его еще нет;
-- сохранить цену в таблицу prices;
 - обновить ticker_latest_prices.
+
+Market Chart на frontend строится по MOEX candles через endpoint:
+- GET /api/v1/market/tickers/{secid}/candles
+
+PostgreSQL хранит состояние продукта: тикеры, latest price, watchlist, alerts и alert events.
+Рыночные свечи не хранятся в PostgreSQL.
+Удаленная таблица prices больше не является частью актуальной модели данных.
 
 Для цен использовать Decimal, не float.
 
@@ -116,6 +122,7 @@ Refresh тикера должен:
 - GET /api/v1/market/tickers/{secid}/moex
 - POST /api/v1/market/tickers/{secid}/refresh
 - GET /api/v1/market/tickers/{secid}/price
+- GET /api/v1/market/tickers/{secid}/candles
 
 WATCHLIST MODULE
 
@@ -130,8 +137,8 @@ Watchlist отвечает за список отслеживаемых тике
 Поведение:
 - GET /api/v1/watchlist возвращает список тикеров в watchlist.
 - POST /api/v1/watchlist/items добавляет тикер в watchlist.
-- Если тикера еще нет в базе, backend должен сходить в MOEX, создать тикер и сохранить цену.
-- DELETE /api/v1/watchlist/items/{secid} удаляет тикер из watchlist, но не удаляет сам тикер и историю цен из базы.
+- Если тикера еще нет в базе, backend должен сходить в MOEX, создать тикер и сохранить latest price.
+- DELETE /api/v1/watchlist/items/{secid} удаляет тикер из watchlist, но не удаляет сам тикер и latest price.
 - POST /api/v1/watchlist/refresh-prices обновляет цены всех тикеров из watchlist.
 - Batch refresh должен продолжать работу, даже если один тикер упал.
 - Ответ batch refresh должен содержать total, updated, failed и подробности по каждому тикеру.
@@ -180,15 +187,18 @@ frontend/src/
   - alerts/api.js
 
 Frontend сейчас находится в MVP-состоянии.
-MarketPage.jsx пока большой, это нормально.
-Пока не дробить MarketPage.jsx на компоненты без отдельного запроса.
+MarketPage.jsx работает как контейнер страницы.
+UI-секции вынесены в отдельные компоненты: Market Overview, Watchlist, Market Chart, Alerts и Alert Events.
 
 Frontend умеет:
+- показывать Market Overview;
 - показывать watchlist;
 - добавлять тикеры;
 - удалять тикеры;
 - обновлять цену одного тикера;
 - обновлять цены всего watchlist;
+- выбирать тикер из watchlist;
+- показывать Market Chart по MOEX candles;
 - показывать alerts;
 - создавать alerts;
 - проверять один alert;
@@ -273,10 +283,10 @@ git commit -m "message"
    - тест build_alert_message;
    - тест batch summary logic.
 
-4. Позже разрезать MarketPage.jsx на компоненты:
-   - WatchlistSection
-   - AlertsSection
-   - AlertEventsSection
+4. Позже улучшить Market Chart:
+   - добавить более богатые подписи осей;
+   - улучшить tooltip/hover по свечам;
+   - добавить больше аналитических метрик.
 
 5. Позже добавить notifications/background tasks.
 

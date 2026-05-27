@@ -57,13 +57,6 @@ class TickerRefreshResult(TickerPriceRead):
     saved: bool = True
 
 
-class TickerPriceHistoryItem(BaseModel):
-    price: Decimal
-    source: str
-    received_at: datetime
-    market_time: datetime | None = None
-
-
 class TickerCandleResponse(BaseModel):
     begin: datetime
     open: Decimal

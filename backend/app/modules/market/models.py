@@ -43,45 +43,11 @@ class Ticker(Base):
         nullable=False,
     )
 
-    prices: Mapped[list["Price"]] = relationship(
-        back_populates="ticker",
-        cascade="all, delete-orphan",
-    )
-
     latest_price: Mapped["TickerLatestPrice | None"] = relationship(
         back_populates="ticker",
         cascade="all, delete-orphan",
         uselist=False,
     )
-
-
-class Price(Base):
-    __tablename__ = "prices"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-
-    ticker_id: Mapped[int] = mapped_column(
-        ForeignKey("tickers.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-
-    price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
-
-    source: Mapped[str] = mapped_column(String(32), default="moex", nullable=False)
-
-    received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-    market_time: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
-    ticker: Mapped["Ticker"] = relationship(back_populates="prices")
 
 
 class TickerLatestPrice(Base):

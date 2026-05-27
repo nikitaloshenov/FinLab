@@ -4,7 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.modules.market.models import Price, Ticker, TickerLatestPrice
+from app.modules.market.models import Ticker, TickerLatestPrice
 
 
 def get_tickers(db: Session) -> list[dict[str, Any]]:
@@ -69,24 +69,6 @@ def update_ticker_from_moex_data(
     ticker.currency = ticker_data.get("currency")
 
     return ticker
-
-
-def create_price(
-    db: Session,
-    ticker: Ticker,
-    price: Decimal,
-    source: str = "moex",
-) -> Price:
-    price_row = Price(
-        ticker_id=ticker.id,
-        price=price,
-        source=source,
-    )
-
-    db.add(price_row)
-    db.flush()
-
-    return price_row
 
 
 def upsert_latest_price(
@@ -154,32 +136,3 @@ def get_latest_price_by_secid(
         "received_at": latest_price.received_at,
         "market_time": latest_price.market_time,
     }
-
-
-def get_price_history_by_secid(
-    db: Session,
-    secid: str,
-    limit: int,
-) -> list[dict[str, Any]] | None:
-    ticker = get_ticker_by_secid(db, secid)
-
-    if ticker is None:
-        return None
-
-    prices = (
-        db.query(Price)
-        .filter(Price.ticker_id == ticker.id)
-        .order_by(Price.received_at.desc())
-        .limit(limit)
-        .all()
-    )
-
-    return [
-        {
-            "price": price.price,
-            "source": price.source,
-            "received_at": price.received_at,
-            "market_time": price.market_time,
-        }
-        for price in reversed(prices)
-    ]

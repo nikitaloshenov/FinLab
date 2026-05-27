@@ -6,12 +6,6 @@ export function refreshTickerPrice(secid) {
   });
 }
 
-export function getTickerPriceHistory(secid, limit = 50) {
-  return apiRequest(
-    `/market/tickers/${encodeURIComponent(secid)}/prices?limit=${limit}`
-  );
-}
-
 export function getTickerCandles(secid, { interval = "1d", limit = 100 } = {}) {
   const params = new URLSearchParams({
     interval,

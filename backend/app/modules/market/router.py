@@ -12,18 +12,15 @@ from app.modules.market.schemas import (
     MoexTickerData,
     TickerCandleResponse,
     TickerListItem,
-    TickerPriceHistoryItem,
     TickerPriceRead,
     TickerRefreshResult,
 )
 from app.modules.market.service import (
     MarketLatestPriceNotFoundError,
     MarketPriceUnavailableError,
-    MarketTickerNotFoundError,
     get_saved_ticker_price,
     get_ticker_candles,
     get_ticker_from_moex,
-    get_ticker_price_history,
     list_tickers,
     refresh_ticker_price,
 )
@@ -97,26 +94,6 @@ def get_market_ticker_price(
         raise_api_error(
             status_code=404,
             code="market_latest_price_not_found",
-            message=str(error),
-        )
-
-
-@router.get("/tickers/{secid}/prices", response_model=list[TickerPriceHistoryItem])
-def get_market_ticker_price_history(
-    secid: str,
-    limit: int = Query(default=50, ge=1, le=500),
-    db: Session = Depends(get_db),
-):
-    try:
-        return get_ticker_price_history(
-            db=db,
-            secid=secid,
-            limit=limit,
-        )
-    except MarketTickerNotFoundError as error:
-        raise_api_error(
-            status_code=404,
-            code="ticker_not_found",
             message=str(error),
         )
 

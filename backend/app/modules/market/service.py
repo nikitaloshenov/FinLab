@@ -10,10 +10,8 @@ from app.modules.market.moex_client import (
     MoexTickerNotFoundError,
 )
 from app.modules.market.repository import (
-    create_price,
     create_ticker,
     get_latest_price_by_secid,
-    get_price_history_by_secid,
     get_ticker_by_secid,
     get_tickers,
     update_ticker_from_moex_data,
@@ -29,10 +27,6 @@ class MarketPriceUnavailableError(Exception):
 
 
 class MarketLatestPriceNotFoundError(Exception):
-    pass
-
-
-class MarketTickerNotFoundError(Exception):
     pass
 
 
@@ -91,13 +85,6 @@ def refresh_ticker_price(db: Session, secid: str) -> dict[str, Any]:
     else:
         ticker = update_ticker_from_moex_data(ticker, moex_data)
 
-    create_price(
-        db=db,
-        ticker=ticker,
-        price=price,
-        source="moex",
-    )
-
     latest_price = upsert_latest_price(
         db=db,
         ticker=ticker,
@@ -137,25 +124,6 @@ def get_saved_ticker_price(db: Session, secid: str) -> dict[str, Any]:
         )
 
     return latest_price
-
-
-def get_ticker_price_history(
-    db: Session,
-    secid: str,
-    limit: int,
-) -> list[dict[str, Any]]:
-    history = get_price_history_by_secid(
-        db=db,
-        secid=secid,
-        limit=limit,
-    )
-
-    if history is None:
-        raise MarketTickerNotFoundError(
-            f"Ticker {secid.upper()} not found"
-        )
-
-    return history
 
 
 def get_ticker_candles(

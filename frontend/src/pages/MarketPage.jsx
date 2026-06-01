@@ -178,6 +178,41 @@ export function MarketPage() {
     }
   }
 
+  async function handleQuickAddTicker(secid) {
+    const normalizedTicker = secid.trim().toUpperCase();
+    const existingItem = watchlist.find((item) => item.secid === normalizedTicker);
+
+    if (existingItem) {
+      await handleSelectTicker(normalizedTicker);
+      return;
+    }
+
+    try {
+      setIsActionLoading(true);
+      setErrorMessage("");
+      setInfoMessage("");
+
+      await addWatchlistItem(normalizedTicker);
+
+      const updatedWatchlist = await loadWatchlist({ showLoader: false });
+
+      setSelectedTicker(normalizedTicker);
+      await loadTickerCandles(normalizedTicker, candleInterval, candleLimit);
+
+      const addedItem = updatedWatchlist.find(
+        (item) => item.secid === normalizedTicker
+      );
+
+      setInfoMessage(
+        `${addedItem?.secid || normalizedTicker} добавлен в watchlist.`
+      );
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsActionLoading(false);
+    }
+  }
+
   async function handleDeleteTicker(secid) {
     try {
       setIsActionLoading(true);
@@ -451,6 +486,7 @@ export function MarketPage() {
             onDeleteTicker={handleDeleteTicker}
             onRefreshTicker={handleRefreshTicker}
             onRefreshAllPrices={handleRefreshAllPrices}
+            onQuickAddTicker={handleQuickAddTicker}
             onSelectTicker={handleSelectTicker}
             isLoading={isLoading}
             isActionLoading={isActionLoading}

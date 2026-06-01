@@ -1,4 +1,5 @@
 import { formatDate, formatPrice } from "../../shared/lib/formatters.js";
+import { MarketUniverseQuickAdd } from "./MarketUniverseQuickAdd.jsx";
 
 export function WatchlistSection({
   watchlist,
@@ -8,6 +9,7 @@ export function WatchlistSection({
   onDeleteTicker,
   onRefreshTicker,
   onRefreshAllPrices,
+  onQuickAddTicker,
   onSelectTicker,
   isLoading,
   isActionLoading,
@@ -57,6 +59,12 @@ export function WatchlistSection({
           {isActionLoading ? "Loading..." : "Add ticker"}
         </button>
       </form>
+
+      <MarketUniverseQuickAdd
+        watchlist={watchlist}
+        onAddTicker={onQuickAddTicker}
+        isDisabled={isActionLoading || isRefreshAllLoading}
+      />
 
       {isLoading && (
         <div className="emptyState compact">

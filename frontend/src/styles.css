@@ -635,6 +635,124 @@ td {
   white-space: nowrap;
 }
 
+.universePanel {
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.universeHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.universeHeader h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.universeHeader p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.universeToolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.universeSearch,
+.universeSectorSelect {
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.universeList {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.universeItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(20, 31, 47, 0.55);
+}
+
+.universeInfo {
+  min-width: 0;
+}
+
+.universeTicker,
+.universeName,
+.universeSector {
+  display: block;
+}
+
+.universeTicker {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.universeName {
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.universeSector {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.universeAddButton,
+.universeAddedState {
+  min-height: 30px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.universeAddButton {
+  border-color: var(--border-strong);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.universeAddButton:hover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.universeAddedState {
+  border-color: rgba(134, 239, 172, 0.24);
+  background: var(--positive-bg);
+  color: var(--positive);
+}
+
 .statusBadge {
   display: inline-flex;
   align-items: center;
@@ -867,6 +985,10 @@ td {
 
   .rowActions {
     flex-wrap: wrap;
+  }
+
+  .universeToolbar {
+    grid-template-columns: 1fr;
   }
 
   .eventItem {

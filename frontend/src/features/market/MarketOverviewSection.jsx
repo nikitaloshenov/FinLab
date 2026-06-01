@@ -17,7 +17,7 @@ export function MarketOverviewSection({
   const activeAlerts = alertItems.filter((alert) => alert?.is_active).length;
 
   return (
-    <section className="card">
+    <section className="card overviewSection">
       <div className="cardHeader">
         <div>
           <h2>Market Overview</h2>

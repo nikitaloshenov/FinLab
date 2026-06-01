@@ -2,7 +2,7 @@ import { formatDate, formatPrice } from "../../shared/lib/formatters.js";
 
 export function AlertEventsSection({ alertEvents }) {
   return (
-    <section className="card">
+    <section className="card eventsCard">
       <div className="cardHeader">
         <div>
           <h2>Alert Events</h2>
@@ -11,38 +11,31 @@ export function AlertEventsSection({ alertEvents }) {
       </div>
 
       {alertEvents.length === 0 && (
-        <p className="status">Событий пока нет.</p>
+        <div className="emptyState compact">
+          <strong>Событий пока нет</strong>
+          <p>Когда alert сработает, событие появится в этом журнале.</p>
+        </div>
       )}
 
       {alertEvents.length > 0 && (
-        <div className="tableWrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Alert</th>
-                <th>Ticker</th>
-                <th>Price</th>
-                <th>Target</th>
-                <th>Condition</th>
-                <th>Created</th>
-              </tr>
-            </thead>
+        <div className="eventLog">
+          {alertEvents.map((event) => (
+            <article className="eventItem" key={event.id}>
+              <div className="eventMain">
+                <span className="eventTicker">{event.secid}</span>
+                <strong>
+                  {formatPrice(event.price)} / target {formatPrice(event.target_price)}
+                </strong>
+                <p>{event.message || `${event.condition} alert triggered.`}</p>
+              </div>
 
-            <tbody>
-              {alertEvents.map((event) => (
-                <tr key={event.id}>
-                  <td>#{event.id}</td>
-                  <td>#{event.alert_id}</td>
-                  <td className="ticker">{event.secid}</td>
-                  <td>{formatPrice(event.price)}</td>
-                  <td>{formatPrice(event.target_price)}</td>
-                  <td>{event.condition}</td>
-                  <td>{formatDate(event.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <div className="eventMeta">
+                <span>#{event.id}</span>
+                <span>Alert #{event.alert_id}</span>
+                <span>{formatDate(event.created_at)}</span>
+              </div>
+            </article>
+          ))}
         </div>
       )}
     </section>

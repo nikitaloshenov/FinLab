@@ -19,7 +19,7 @@ export function WatchlistSection({
   const hasWatchlistItems = watchlist.length > 0;
 
   return (
-    <section className="card">
+    <section className="card watchlistCard">
       <div className="cardHeader">
         <div>
           <h2>Watchlist</h2>
@@ -27,6 +27,7 @@ export function WatchlistSection({
         </div>
 
         <button
+          className="secondaryButton"
           type="button"
           disabled={
             isLoading ||
@@ -48,15 +49,27 @@ export function WatchlistSection({
           disabled={isActionLoading || isRefreshAllLoading}
         />
 
-        <button type="submit" disabled={isActionLoading || isRefreshAllLoading}>
+        <button
+          className="primaryButton"
+          type="submit"
+          disabled={isActionLoading || isRefreshAllLoading}
+        >
           {isActionLoading ? "Loading..." : "Add ticker"}
         </button>
       </form>
 
-      {isLoading && <p className="status">Загрузка watchlist...</p>}
+      {isLoading && (
+        <div className="emptyState compact">
+          <strong>Загрузка watchlist</strong>
+          <p>Получаем список отслеживаемых тикеров.</p>
+        </div>
+      )}
 
       {!isLoading && !errorMessage && watchlist.length === 0 && (
-        <p className="status">Watchlist пока пустой.</p>
+        <div className="emptyState compact">
+          <strong>Watchlist пустой</strong>
+          <p>Добавь тикер MOEX, чтобы начать мониторинг.</p>
+        </div>
       )}
 
       {!isLoading && watchlist.length > 0 && (
@@ -67,7 +80,6 @@ export function WatchlistSection({
                 <th>Ticker</th>
                 <th>Name</th>
                 <th>Last price</th>
-                <th>Added at</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -98,12 +110,17 @@ export function WatchlistSection({
                         {item.secid}
                       </button>
                     </td>
-                    <td>{item.short_name || "—"}</td>
-                    <td>{formatPrice(item.latest_price)}</td>
-                    <td>{formatDate(item.created_at)}</td>
+                    <td>
+                      <div className="stackedCell">
+                        <strong>{item.short_name || "—"}</strong>
+                        <span>Added {formatDate(item.created_at)}</span>
+                      </div>
+                    </td>
+                    <td className="numericCell">{formatPrice(item.latest_price)}</td>
                     <td>
                       <div className="rowActions">
                         <button
+                          className="subtleButton"
                           type="button"
                           disabled={
                             isActionLoading ||

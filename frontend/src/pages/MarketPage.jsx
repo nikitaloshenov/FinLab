@@ -14,8 +14,8 @@ import {
   getTickerCandles,
   refreshTickerPrice,
 } from "../features/market/api.js";
+import { MarketChartSection } from "../features/market/MarketChartSection.jsx";
 import { MarketOverviewSection } from "../features/market/MarketOverviewSection.jsx";
-import { PriceHistorySection } from "../features/market/PriceHistorySection.jsx";
 import { WatchlistSection } from "../features/watchlist/WatchlistSection.jsx";
 import {
   addWatchlistItem,
@@ -386,27 +386,35 @@ export function MarketPage() {
   return (
     <main className="page">
       <section className="hero">
-        <p className="eyebrow">FinLab</p>
-        <h1>Market Watchlist</h1>
-        <p className="heroText">
-          Frontend работает с FastAPI backend: watchlist, обновление цен и
-          price alerts.
-        </p>
+        <div>
+          <p className="eyebrow">FinLab Dashboard</p>
+          <h1>Market Watchlist & Alerts</h1>
+          <p className="heroText">
+            Рабочая панель для MOEX-тикеров: watchlist, latest price,
+            свечной Market Chart и price alerts в одном интерфейсе.
+          </p>
+        </div>
+        <div className="heroMeta">
+          <span>MOEX candles</span>
+          <strong>{selectedTicker || "No ticker selected"}</strong>
+        </div>
       </section>
 
-      {errorMessage && (
-        <div className="error pageMessage">
-          <strong>Ошибка</strong>
-          <p>{errorMessage}</p>
-        </div>
-      )}
+      <div className="messages">
+        {errorMessage && (
+          <div className="error pageMessage">
+            <strong>Ошибка</strong>
+            <p>{errorMessage}</p>
+          </div>
+        )}
 
-      {infoMessage && !errorMessage && (
-        <div className="success pageMessage">
-          <strong>Готово</strong>
-          <p>{infoMessage}</p>
-        </div>
-      )}
+        {infoMessage && !errorMessage && (
+          <div className="success pageMessage">
+            <strong>Готово</strong>
+            <p>{infoMessage}</p>
+          </div>
+        )}
+      </div>
 
       <MarketOverviewSection
         watchlist={watchlist}
@@ -417,36 +425,42 @@ export function MarketPage() {
         isLoading={isLoading}
       />
 
-      <WatchlistSection
-        watchlist={watchlist}
-        newTicker={newTicker}
-        onNewTickerChange={setNewTicker}
-        onAddTicker={handleAddTicker}
-        onDeleteTicker={handleDeleteTicker}
-        onRefreshTicker={handleRefreshTicker}
-        onRefreshAllPrices={handleRefreshAllPrices}
-        onSelectTicker={handleSelectTicker}
-        isLoading={isLoading}
-        isActionLoading={isActionLoading}
-        isRefreshAllLoading={isRefreshAllLoading}
-        refreshingTickers={refreshingTickers}
-        selectedTicker={selectedTicker}
-        errorMessage={errorMessage}
-      />
+      <div className="dashboardGrid">
+        <div className="dashboardMain">
+          <MarketChartSection
+            selectedTicker={selectedTicker}
+            candles={candles}
+            candleInterval={candleInterval}
+            candleLimit={candleLimit}
+            isLoading={isCandlesLoading}
+            errorMessage={candlesErrorMessage}
+            onIntervalChange={handleCandleIntervalChange}
+            onLimitChange={handleCandleLimitChange}
+            onReload={() =>
+              loadTickerCandles(selectedTicker, candleInterval, candleLimit)
+            }
+          />
+        </div>
 
-      <PriceHistorySection
-        selectedTicker={selectedTicker}
-        candles={candles}
-        candleInterval={candleInterval}
-        candleLimit={candleLimit}
-        isLoading={isCandlesLoading}
-        errorMessage={candlesErrorMessage}
-        onIntervalChange={handleCandleIntervalChange}
-        onLimitChange={handleCandleLimitChange}
-        onReload={() =>
-          loadTickerCandles(selectedTicker, candleInterval, candleLimit)
-        }
-      />
+        <div className="dashboardSide">
+          <WatchlistSection
+            watchlist={watchlist}
+            newTicker={newTicker}
+            onNewTickerChange={setNewTicker}
+            onAddTicker={handleAddTicker}
+            onDeleteTicker={handleDeleteTicker}
+            onRefreshTicker={handleRefreshTicker}
+            onRefreshAllPrices={handleRefreshAllPrices}
+            onSelectTicker={handleSelectTicker}
+            isLoading={isLoading}
+            isActionLoading={isActionLoading}
+            isRefreshAllLoading={isRefreshAllLoading}
+            refreshingTickers={refreshingTickers}
+            selectedTicker={selectedTicker}
+            errorMessage={errorMessage}
+          />
+        </div>
+      </div>
 
       <AlertsSection
         alerts={alerts}

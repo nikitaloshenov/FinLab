@@ -20,7 +20,7 @@ export function AlertsSection({
   const activeAlertsCount = alerts.filter((alert) => alert.is_active).length;
 
   return (
-    <section className="card">
+    <section className="card alertsCard">
       <div className="cardHeader">
         <div>
           <h2>Price Alerts</h2>
@@ -28,6 +28,7 @@ export function AlertsSection({
         </div>
 
         <button
+          className="secondaryButton"
           type="button"
           disabled={
             isLoading ||
@@ -65,13 +66,16 @@ export function AlertsSection({
           disabled={isActionLoading}
         />
 
-        <button type="submit" disabled={isActionLoading}>
+        <button className="primaryButton" type="submit" disabled={isActionLoading}>
           {isActionLoading ? "Loading..." : "Create alert"}
         </button>
       </form>
 
       {alerts.length === 0 && (
-        <p className="status">Активных или созданных alert’ов пока нет.</p>
+        <div className="emptyState compact">
+          <strong>Alert'ов пока нет</strong>
+          <p>Создай alert, чтобы отслеживать price events по тикеру.</p>
+        </div>
       )}
 
       {alerts.length > 0 && (
@@ -112,6 +116,7 @@ export function AlertsSection({
                     <td>
                       <div className="rowActions">
                         <button
+                          className="subtleButton"
                           type="button"
                           disabled={
                             isActionLoading ||

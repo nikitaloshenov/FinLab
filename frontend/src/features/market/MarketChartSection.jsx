@@ -1,15 +1,15 @@
 import { formatDate, formatPrice } from "../../shared/lib/formatters.js";
 
-const CHART_WIDTH = 760;
-const CHART_HEIGHT = 280;
+const CHART_WIDTH = 920;
+const CHART_HEIGHT = 360;
 const CHART_PADDING = {
-  top: 20,
-  right: 24,
-  bottom: 42,
-  left: 64,
+  top: 24,
+  right: 28,
+  bottom: 46,
+  left: 72,
 };
 
-export function PriceHistorySection({
+export function MarketChartSection({
   selectedTicker,
   candles,
   candleInterval,
@@ -21,11 +21,11 @@ export function PriceHistorySection({
   onReload,
 }) {
   const candleItems = Array.isArray(candles) ? candles : [];
-  const latestCandles = candleItems.slice(-8).reverse();
-  const stats = getCandleStats(candleItems);
+  const latestCandles = candleItems.slice(-6).reverse();
+  const stats = candleItems.length > 0 ? getCandleStats(candleItems) : null;
 
   return (
-    <section className="card">
+    <section className="card marketChartCard">
       <div className="cardHeader">
         <div>
           <h2>Market Chart</h2>
@@ -36,7 +36,7 @@ export function PriceHistorySection({
           </p>
         </div>
 
-        <div className="priceHistoryControls">
+        <div className="chartToolbar">
           <label>
             <span>Interval</span>
             <select
@@ -65,6 +65,7 @@ export function PriceHistorySection({
           </label>
 
           <button
+            className="secondaryButton"
             type="button"
             disabled={!selectedTicker || isLoading}
             onClick={onReload}
@@ -74,38 +75,40 @@ export function PriceHistorySection({
         </div>
       </div>
 
-      <p className="status priceHistoryMessage">Source: MOEX candles</p>
+      <p className="sectionHint">Source: MOEX candles</p>
 
       {!selectedTicker && (
-        <p className="status">
-          Выбери тикер из watchlist, чтобы посмотреть свечной market chart.
-        </p>
+        <div className="emptyState">
+          <strong>Выбери тикер</strong>
+          <p>Кликни по тикеру в watchlist, чтобы построить Market Chart.</p>
+        </div>
       )}
 
       {selectedTicker && errorMessage && (
-        <div className="error priceHistoryMessage">
+        <div className="error chartMessage">
           <strong>Ошибка</strong>
           <p>{errorMessage}</p>
         </div>
       )}
 
       {selectedTicker && isLoading && (
-        <p className="status">Загрузка свечей MOEX...</p>
+        <div className="emptyState">
+          <strong>Загрузка свечей</strong>
+          <p>Получаем MOEX candles для выбранного интервала.</p>
+        </div>
       )}
 
       {selectedTicker && !isLoading && !errorMessage && candleItems.length === 0 && (
-        <p className="status">
-          Свечей MOEX пока нет для выбранного тикера и интервала.
-        </p>
+        <div className="emptyState">
+          <strong>Свечей нет</strong>
+          <p>MOEX не вернул свечи для выбранного тикера и интервала.</p>
+        </div>
       )}
 
-      {selectedTicker && !isLoading && !errorMessage && candleItems.length > 0 && (
+      {selectedTicker && !isLoading && !errorMessage && candleItems.length > 0 && stats && (
         <>
-          <div className="priceHistoryStats">
-            <StatItem label="Candles" value={stats.count} />
-            <StatItem label="Min close" value={formatPrice(stats.minClose)} />
-            <StatItem label="Max close" value={formatPrice(stats.maxClose)} />
-            <StatItem label="Latest close" value={formatPrice(stats.latestClose)} />
+          <div className="chartStats">
+            <StatItem label="Latest" value={formatPrice(stats.latestClose)} />
             <StatItem
               label="Change"
               value={formatSignedPrice(stats.change)}
@@ -116,37 +119,47 @@ export function PriceHistorySection({
               value={formatPercent(stats.changePercent)}
               tone={stats.change >= 0 ? "positive" : "negative"}
             />
+            <StatItem label="Min close" value={formatPrice(stats.minClose)} />
+            <StatItem label="Max close" value={formatPrice(stats.maxClose)} />
+            <StatItem label="Candles" value={stats.count} />
           </div>
 
-          <div className="priceHistoryLayout">
+          <div className="marketChartLayout">
             <MarketLineChart candles={candleItems} interval={candleInterval} />
 
-            <div className="tableWrapper priceHistoryTable">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Begin</th>
-                    <th>Open</th>
-                    <th>High</th>
-                    <th>Low</th>
-                    <th>Close</th>
-                    <th>Volume</th>
-                  </tr>
-                </thead>
+            <div className="candlesPanel">
+              <div className="panelTitle">
+                <span>Latest candles</span>
+                <strong>{latestCandles.length}</strong>
+              </div>
 
-                <tbody>
-                  {latestCandles.map((candle) => (
-                    <tr key={`${candle.begin}-${candle.close}`}>
-                      <td>{formatCandleTime(candle.begin, candleInterval)}</td>
-                      <td>{formatPrice(candle.open)}</td>
-                      <td>{formatPrice(candle.high)}</td>
-                      <td>{formatPrice(candle.low)}</td>
-                      <td>{formatPrice(candle.close)}</td>
-                      <td>{formatPrice(candle.volume)}</td>
+              <div className="tableWrapper candlesTable">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Begin</th>
+                      <th>Open</th>
+                      <th>High</th>
+                      <th>Low</th>
+                      <th>Close</th>
+                      <th>Volume</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+
+                  <tbody>
+                    {latestCandles.map((candle) => (
+                      <tr key={`${candle.begin}-${candle.close}`}>
+                        <td>{formatCandleTime(candle.begin, candleInterval)}</td>
+                        <td>{formatPrice(candle.open)}</td>
+                        <td>{formatPrice(candle.high)}</td>
+                        <td>{formatPrice(candle.low)}</td>
+                        <td>{formatPrice(candle.close)}</td>
+                        <td>{formatPrice(candle.volume)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </>
@@ -156,7 +169,7 @@ export function PriceHistorySection({
 }
 
 function StatItem({ label, value, tone }) {
-  const className = tone ? `priceHistoryStat ${tone}` : "priceHistoryStat";
+  const className = tone ? `chartStat ${tone}` : "chartStat";
 
   return (
     <div className={className}>

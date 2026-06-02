@@ -134,7 +134,7 @@ def test_benchmark_failure_keeps_report_and_adds_limitation():
 
     assert report["historical_validation"]["benchmark_result"]["status"] == "failed"
     assert report["historical_validation"]["relative_result"] is None
-    assert "Benchmark validation was unavailable." in report["limitations"]
+    assert "Проверка бенчмарка недоступна." in report["limitations"]
     assert report["assessment"]["overall_result"] == "supports"
     assert report["assessment"]["confidence"] == "low"
 
@@ -394,4 +394,3 @@ def _collect_strings(value):
         return strings
 
     return []
-

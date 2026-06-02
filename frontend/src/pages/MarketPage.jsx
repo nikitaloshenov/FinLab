@@ -14,6 +14,7 @@ import {
   getTickerCandles,
   refreshTickerPrice,
 } from "../features/market/api.js";
+import { HypothesisLabSection } from "../features/hypotheses/HypothesisLabSection.jsx";
 import { MarketChartSection } from "../features/market/MarketChartSection.jsx";
 import { MarketOverviewSection } from "../features/market/MarketOverviewSection.jsx";
 import { WatchlistSection } from "../features/watchlist/WatchlistSection.jsx";
@@ -497,6 +498,11 @@ export function MarketPage() {
           />
         </div>
       </div>
+
+      <HypothesisLabSection
+        selectedTicker={selectedTicker}
+        watchlist={watchlist}
+      />
 
       <AlertsSection
         alerts={alerts}

@@ -161,7 +161,7 @@ def test_post_hypothesis_analyze_benchmark_failure_does_not_fail_endpoint(
     assert data["historical_validation"]["main_ticker_result"]["status"] == "ok"
     assert data["historical_validation"]["benchmark_result"]["status"] == "failed"
     assert data["historical_validation"]["relative_result"] is None
-    assert "Benchmark validation was unavailable." in data["limitations"]
+    assert "Проверка бенчмарка недоступна." in data["limitations"]
 
 
 def test_post_hypothesis_analyze_near_zero_main_return_is_not_supports(
@@ -391,4 +391,3 @@ def _collect_strings(value):
         return strings
 
     return []
-

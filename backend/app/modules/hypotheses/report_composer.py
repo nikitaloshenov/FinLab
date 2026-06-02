@@ -184,8 +184,8 @@ def _build_assessment(
             "overall_result": "insufficient_data",
             "confidence": "low",
             "text": (
-                "There is not enough historical candle data for the main ticker. "
-                "The report remains a research checklist, not a forecast."
+                "Недостаточно исторических свечей для основного тикера. "
+                "Отчет остается исследовательским чек-листом, а не прогнозом."
             ),
         }
 
@@ -194,8 +194,8 @@ def _build_assessment(
             "overall_result": "mixed_support",
             "confidence": "low",
             "text": (
-                f"{main_ticker_result['secid']} showed a weak reaction after the event, "
-                "with movement close to flat. The result should be treated as mixed."
+                f"{main_ticker_result['secid']} показал слабую реакцию после события: "
+                "движение было близко к нулевому. Итог лучше трактовать как смешанный."
             ),
         }
 
@@ -208,16 +208,16 @@ def _build_assessment(
         overall_result = "mixed_support"
         confidence = "low"
         text = (
-            f"{main_ticker_result['secid']} moved after the event, while the expected direction is neutral. "
-            "This creates a mixed historical validation result."
+            f"{main_ticker_result['secid']} изменился после события, хотя ожидаемая реакция нейтральная. "
+            "Историческая проверка дает смешанный результат."
         )
     elif main_direction_matches:
         if _relative_result_strongly_contradicts(relative_result, expected_direction):
             overall_result = "mixed_support"
             confidence = "low"
             text = (
-                f"{main_ticker_result['secid']} moved in the expected direction after the event, "
-                "but benchmark comparison weakens the support."
+                f"{main_ticker_result['secid']} двигался в ожидаемом направлении после события, "
+                "но сравнение с бенчмарком ослабляет поддержку гипотезы."
             )
         else:
             overall_result = "supports"
@@ -227,15 +227,15 @@ def _build_assessment(
                 else "low"
             )
             text = (
-                f"{main_ticker_result['secid']} moved in the expected direction after the event. "
-                "This supports the scenario as historical validation, not as a forecast."
+                f"{main_ticker_result['secid']} двигался в ожидаемом направлении после события. "
+                "Это поддерживает сценарий в рамках исторической проверки, но не является прогнозом."
             )
     else:
         overall_result = "contradicts"
         confidence = "low"
         text = (
-            f"{main_ticker_result['secid']} moved against the expected direction after the event. "
-            "This contradicts the scenario in the available historical window."
+            f"{main_ticker_result['secid']} двигался против ожидаемого направления после события. "
+            "Это противоречит сценарию в доступном историческом окне."
         )
 
     if benchmark_result is not None and benchmark_result.get("status") != "ok":
@@ -263,8 +263,8 @@ def _build_arguments_for(
             {
                 "type": "historical_validation",
                 "message": (
-                    "Historical validation for the main ticker provides at least partial support "
-                    "for the expected direction."
+                    "Историческая проверка основного тикера дает как минимум частичную поддержку "
+                    "ожидаемого направления."
                 ),
             }
         )
@@ -274,7 +274,7 @@ def _build_arguments_for(
             {
                 "type": "market_context",
                 "message": (
-                    "The main ticker outperformed the benchmark in the validation window."
+                    "Основной тикер выглядел сильнее бенчмарка в окне проверки."
                 ),
             }
         )
@@ -296,8 +296,8 @@ def _build_arguments_against(
             {
                 "type": "historical_validation",
                 "message": (
-                    "Historical validation for the main ticker is weak, mixed, or contrary "
-                    "to the expected direction."
+                    "Историческая проверка основного тикера слабая, смешанная или противоречит "
+                    "ожидаемому направлению."
                 ),
             }
         )
@@ -307,7 +307,7 @@ def _build_arguments_against(
             {
                 "type": "market_context",
                 "message": (
-                    "The main ticker underperformed the benchmark in the validation window."
+                    "Основной тикер выглядел слабее бенчмарка в окне проверки."
                 ),
             }
         )
@@ -316,7 +316,7 @@ def _build_arguments_against(
         arguments.append(
             {
                 "type": "risk",
-                "message": "Benchmark validation was unavailable.",
+                "message": "Проверка бенчмарка недоступна.",
             }
         )
 
@@ -324,7 +324,7 @@ def _build_arguments_against(
         arguments.append(
             {
                 "type": "risk",
-                "message": "Post-event volatility is elevated for the main ticker.",
+                "message": "После события волатильность основного тикера повышена.",
             }
         )
 
@@ -345,12 +345,12 @@ def _build_limitations(
         _append_result_limitations(limitations, benchmark_result)
 
         if benchmark_result.get("status") != "ok":
-            limitations.append("Benchmark validation was unavailable.")
+            limitations.append("Проверка бенчмарка недоступна.")
     elif benchmark_ticker is not None:
-        limitations.append("Benchmark validation was unavailable.")
+        limitations.append("Проверка бенчмарка недоступна.")
 
     limitations.append(
-        "Historical validation is not a forecast and does not prove causality."
+        "Историческая проверка не является прогнозом и не доказывает причинность."
     )
 
     return _deduplicate_strings(limitations)
@@ -379,7 +379,7 @@ def _build_suggested_alerts(
                     "secid": main_ticker_result["secid"],
                     "condition": "above",
                     "target_price": price_after,
-                    "reason": "Watch whether price moves above the latest validation close.",
+                    "reason": "Отслеживать, закрепится ли цена выше последней цены в окне проверки.",
                     "source": "hypothesis_report",
                 }
             )
@@ -390,7 +390,7 @@ def _build_suggested_alerts(
                     "secid": main_ticker_result["secid"],
                     "condition": "below",
                     "target_price": price_at_event,
-                    "reason": "Watch whether price loses the event reference close.",
+                    "reason": "Отслеживать, потеряет ли цена события.",
                     "source": "hypothesis_report",
                 }
             )
@@ -402,7 +402,7 @@ def _build_suggested_alerts(
                 "condition": None,
                 "target_price": None,
                 "reason": (
-                    "Watch whether the main ticker continues to outperform or underperform the benchmark."
+                    "Отслеживать, сохраняет ли основной тикер силу или слабость относительно бенчмарка."
                 ),
                 "source": "hypothesis_report",
             }
@@ -519,4 +519,3 @@ def _deduplicate_strings(values: list[str]) -> list[str]:
 
 
 DECIMAL_ZERO = Decimal("0")
-

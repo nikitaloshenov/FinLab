@@ -28,6 +28,12 @@ class KeyRateDecision(Base):
         index=True,
         nullable=False,
     )
+    meeting_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    publication_datetime_msk: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     rate_before: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     rate_after: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
@@ -53,8 +59,10 @@ class KeyRateDecision(Base):
     )
 
     source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    source_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

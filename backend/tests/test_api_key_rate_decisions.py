@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -77,6 +77,16 @@ def test_get_key_rate_decisions_returns_seeded_rows(api_client):
     ]
     assert data["items"][0]["rate_before"] == "16.00"
     assert data["items"][0]["rate_after"] == "15.50"
+    assert data["items"][0]["meeting_date"] == "2026-05-15"
+    assert data["items"][0]["effective_date"] == "2026-05-19"
+    assert data["items"][0]["publication_datetime_msk"] is not None
+    assert data["items"][0]["source_title"] == "Bank of Russia key rate decision"
+    assert data["items"][0]["notes"] == "Curated official row."
+    assert data["items"][1]["meeting_date"] is None
+    assert data["items"][1]["effective_date"] is None
+    assert data["items"][1]["publication_datetime_msk"] is None
+    assert data["items"][1]["source_title"] is None
+    assert data["items"][1]["notes"] is None
 
 
 def test_get_key_rate_decisions_filters_direction_and_only_official(api_client):
@@ -153,6 +163,11 @@ def _seed_decisions(SessionLocal):
                 decision_date=date(2026, 5, 15),
                 direction="rate_cut",
                 is_official=True,
+                meeting_date=date(2026, 5, 15),
+                effective_date=date(2026, 5, 19),
+                publication_datetime_msk=datetime(2026, 5, 15, 13, 30, tzinfo=UTC),
+                source_title="Bank of Russia key rate decision",
+                notes="Curated official row.",
             ),
         )
         create_key_rate_decision(
@@ -172,9 +187,17 @@ def _decision_data(
     decision_date,
     direction,
     is_official=True,
+    meeting_date=None,
+    effective_date=None,
+    publication_datetime_msk=None,
+    source_title=None,
+    notes=None,
 ):
     return {
         "decision_date": decision_date,
+        "meeting_date": meeting_date,
+        "effective_date": effective_date,
+        "publication_datetime_msk": publication_datetime_msk,
         "rate_before": Decimal("16.00"),
         "rate_after": Decimal("15.50"),
         "change_bps": -50,
@@ -184,6 +207,8 @@ def _decision_data(
         "is_scheduled": True,
         "is_official": is_official,
         "source_url": "https://www.cbr.ru/",
+        "source_title": source_title,
         "source_type": "manual_official_import",
         "source_note": "Test row for API tests.",
+        "notes": notes,
     }

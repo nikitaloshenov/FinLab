@@ -75,6 +75,9 @@ class KeyRateDecisionRead(BaseModel):
 
     id: int
     decision_date: date
+    meeting_date: date | None
+    effective_date: date | None
+    publication_datetime_msk: datetime | None
     rate_before: Decimal | None
     rate_after: Decimal | None
     change_bps: int | None
@@ -84,8 +87,10 @@ class KeyRateDecisionRead(BaseModel):
     is_scheduled: bool
     is_official: bool
     source_url: str | None
+    source_title: str | None
     source_type: str | None
     source_note: str | None
+    notes: str | None
     created_at: datetime
     updated_at: datetime
 

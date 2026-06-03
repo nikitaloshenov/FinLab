@@ -13,6 +13,9 @@ def key_rate_decision_to_dict(decision: KeyRateDecision) -> dict[str, Any]:
     return {
         "id": decision.id,
         "decision_date": decision.decision_date,
+        "meeting_date": decision.meeting_date,
+        "effective_date": decision.effective_date,
+        "publication_datetime_msk": decision.publication_datetime_msk,
         "rate_before": decision.rate_before,
         "rate_after": decision.rate_after,
         "change_bps": decision.change_bps,
@@ -22,8 +25,10 @@ def key_rate_decision_to_dict(decision: KeyRateDecision) -> dict[str, Any]:
         "is_scheduled": decision.is_scheduled,
         "is_official": decision.is_official,
         "source_url": decision.source_url,
+        "source_title": decision.source_title,
         "source_type": decision.source_type,
         "source_note": decision.source_note,
+        "notes": decision.notes,
         "created_at": decision.created_at,
         "updated_at": decision.updated_at,
     }

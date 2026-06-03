@@ -24,6 +24,11 @@ The intended direction is to move from a single-event candle-window analysis tow
 
 This analyzer is in development. The database foundation for official/imported key rate decisions exists, but official historical data import and the final multi-event analyzer flow are still planned.
 
+Related specs:
+
+- `KEY_RATE_ANALYZER_SPEC.md` describes the intended analyzer product logic.
+- `KEY_RATE_DATASET_SPEC.md` describes the dataset strategy for historical key rate decisions.
+
 ## Tech Stack
 
 Backend:

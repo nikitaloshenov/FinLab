@@ -6,6 +6,10 @@ Status: in development.
 
 The current repository contains the foundation for this direction, including Hypothesis Lab, MOEX candles access and the `key_rate_decisions` database table. The final multi-event analyzer flow is not fully implemented yet.
 
+Related data-layer document:
+
+- `KEY_RATE_DATASET_SPEC.md` describes the dataset strategy for historical key rate decisions.
+
 ## Product Question
 
 The analyzer should answer:

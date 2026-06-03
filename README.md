@@ -205,6 +205,7 @@ CI also runs backend tests and frontend build.
 - [Project Context](PROJECT_CONTEXT.md)
 - [Feature Roadmap](FEATURE_ROADMAP.md)
 - [Key Rate Analyzer Spec](KEY_RATE_ANALYZER_SPEC.md)
+- [Key Rate Dataset Spec](KEY_RATE_DATASET_SPEC.md)
 - [Audit Log](AUDIT_LOG.md)
 
 ## Engineering Focus

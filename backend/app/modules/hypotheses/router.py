@@ -8,10 +8,15 @@ from app.core.database import get_db
 from app.modules.hypotheses.blueprints import UnsupportedHypothesisBlueprintError
 from app.modules.hypotheses.key_rate_decisions_service import list_decisions
 from app.modules.hypotheses.key_rate_events import list_key_rate_events
+from app.modules.hypotheses.key_rate_impact_service import (
+    KeyRateImpactMainTickerCandlesError,
+    analyze_key_rate_impact,
+)
 from app.modules.hypotheses.schemas import (
     HypothesisAnalyzeRequest,
     KeyRateDecisionListResponse,
     KeyRateEventsListResponse,
+    KeyRateImpactAnalyzeRequest,
 )
 from app.modules.hypotheses.service import analyze_hypothesis
 from app.shared.errors import raise_api_error
@@ -67,5 +72,20 @@ def analyze_hypothesis_endpoint(request: HypothesisAnalyzeRequest):
         raise_api_error(
             status_code=400,
             code="unsupported_hypothesis_blueprint",
+            message=str(error),
+        )
+
+
+@router.post("/key-rate-impact/analyze")
+def analyze_key_rate_impact_endpoint(
+    request: KeyRateImpactAnalyzeRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return jsonable_encoder(analyze_key_rate_impact(db, request))
+    except KeyRateImpactMainTickerCandlesError as error:
+        raise_api_error(
+            status_code=502,
+            code="key_rate_impact_market_data_unavailable",
             message=str(error),
         )

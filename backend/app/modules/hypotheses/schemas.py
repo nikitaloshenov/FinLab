@@ -52,6 +52,56 @@ class HypothesisAnalyzeRequest(BaseModel):
         return self
 
 
+class KeyRateImpactAnalyzeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    main_ticker: str = Field(min_length=1, max_length=32)
+    direction: Literal["rate_cut", "rate_hike", "rate_hold"]
+    benchmark_ticker: str | None = None
+    horizons: list[int] = Field(default_factory=lambda: [1, 3, 10, 30])
+    only_official: bool = True
+    include_events: bool = True
+    max_events: int | None = Field(default=None, ge=1, le=200)
+
+    @field_validator("main_ticker")
+    @classmethod
+    def validate_main_ticker(cls, ticker: str) -> str:
+        normalized_ticker = ticker.strip().upper()
+
+        if not normalized_ticker:
+            raise ValueError("main_ticker cannot be empty")
+
+        return normalized_ticker
+
+    @field_validator("benchmark_ticker")
+    @classmethod
+    def validate_impact_benchmark_ticker(cls, ticker: str | None) -> str | None:
+        if ticker is None:
+            return None
+
+        normalized_ticker = ticker.strip().upper()
+
+        return normalized_ticker or None
+
+    @field_validator("horizons")
+    @classmethod
+    def validate_horizons(cls, horizons: list[int]) -> list[int]:
+        allowed_horizons = {1, 3, 10, 30}
+        normalized_horizons = []
+
+        for horizon in horizons:
+            if horizon not in allowed_horizons:
+                raise ValueError("horizons can contain only 1, 3, 10, 30")
+
+            if horizon not in normalized_horizons:
+                normalized_horizons.append(horizon)
+
+        if not normalized_horizons:
+            raise ValueError("horizons cannot be empty")
+
+        return normalized_horizons
+
+
 class KeyRateEventResponse(BaseModel):
     event_id: str
     event_date: date

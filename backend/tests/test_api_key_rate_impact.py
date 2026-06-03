@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -74,6 +75,142 @@ def test_key_rate_impact_valid_request_returns_report(api_client, monkeypatch):
     assert data["event_results"]
     assert data["metadata"]["source"] == "key_rate_impact_service"
     assert data["metadata"]["engine"] == "multi_event_validation"
+    assert data["summary"]["main_ticker"] == "SBER"
+    assert data["summary"]["company_name"] == "Сбербанк"
+    assert data["summary"]["direction_label"] == "повышение ключевой ставки"
+    assert data["summary"]["is_prediction"] is False
+    assert data["confidence"]["level"] == "low"
+    assert data["skipped_summary"]["skipped_total"] == data["decisions_skipped"]
+
+
+def test_key_rate_impact_existing_response_keys_still_exist(
+    api_client,
+    monkeypatch,
+):
+    client, SessionLocal = api_client
+    _seed_non_official_hike_decisions(SessionLocal)
+    monkeypatch.setattr(key_rate_impact_service, "MoexClient", FakeMoexClient)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={"main_ticker": "SBER", "direction": "rate_hike", "horizons": [1]},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    expected_keys = {
+        "main_ticker",
+        "benchmark_ticker",
+        "direction",
+        "horizons",
+        "decisions_total",
+        "decisions_used",
+        "decisions_skipped",
+        "horizon_summary",
+        "benchmark_summary",
+        "event_results",
+        "limitations",
+        "metadata",
+    }
+
+    assert expected_keys.issubset(data.keys())
+
+
+@pytest.mark.parametrize(
+    ("direction", "direction_label"),
+    [
+        ("rate_cut", "снижение ключевой ставки"),
+        ("rate_hike", "повышение ключевой ставки"),
+        ("rate_hold", "сохранение ключевой ставки"),
+    ],
+)
+def test_key_rate_impact_summary_direction_labels(
+    api_client,
+    direction,
+    direction_label,
+):
+    client, _ = api_client
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={"main_ticker": "SBER", "direction": direction},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["summary"]["direction_label"] == direction_label
+
+
+def test_key_rate_impact_best_horizon_exists_when_usable_data_exists(
+    api_client,
+    monkeypatch,
+):
+    client, SessionLocal = api_client
+    _seed_non_official_hike_decisions(SessionLocal)
+    monkeypatch.setattr(key_rate_impact_service, "MoexClient", FakeMoexClient)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={
+            "main_ticker": "SBER",
+            "direction": "rate_hike",
+            "horizons": [1],
+            "only_official": False,
+        },
+    )
+
+    assert response.status_code == 200
+
+    best_horizon = response.json()["best_horizon"]
+
+    assert best_horizon is not None
+    assert best_horizon["horizon_days"] == 1
+    assert best_horizon["horizon_label"] == "1 торговый день"
+    assert best_horizon["events_with_data"] == 3
+    assert best_horizon["typical_effect_label"]
+
+
+def test_key_rate_impact_best_horizon_is_null_without_usable_data(
+    api_client,
+    monkeypatch,
+):
+    client, _ = api_client
+    monkeypatch.setattr(key_rate_impact_service, "MoexClient", FakeMoexClient)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={"main_ticker": "SBER", "direction": "rate_hold"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["best_horizon"] is None
+
+
+def test_key_rate_impact_horizon_summary_contains_readable_labels(
+    api_client,
+    monkeypatch,
+):
+    client, SessionLocal = api_client
+    _seed_decisions(SessionLocal)
+    monkeypatch.setattr(key_rate_impact_service, "MoexClient", FakeMoexClient)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={
+            "main_ticker": "SBER",
+            "direction": "rate_hike",
+            "horizons": [1],
+            "only_official": False,
+        },
+    )
+
+    assert response.status_code == 200
+
+    horizon = response.json()["horizon_summary"][0]
+
+    assert horizon["horizon_label"] == "1 торговый день"
+    assert horizon["typical_effect_label"]
+    assert horizon["typical_direction_label"]
 
 
 def test_key_rate_impact_uses_direction_filter(api_client, monkeypatch):
@@ -218,6 +355,7 @@ def test_key_rate_impact_include_events_false_hides_events(api_client, monkeypat
 
     assert response.status_code == 200
     assert response.json()["event_results"] == []
+    assert "skipped_summary" in response.json()
 
 
 def test_key_rate_impact_main_ticker_failure_returns_structured_error(
@@ -284,10 +422,20 @@ def test_key_rate_impact_response_has_no_forbidden_wording(api_client, monkeypat
         "гарантированно",
         "купить",
         "продать",
+        "точно",
+        "гарантированно",
+        "купить",
+        "продать",
     ]
 
     for word in forbidden_words:
-        assert word not in text
+        assert not _contains_forbidden_word(text, word)
+
+
+def _contains_forbidden_word(text, word):
+    pattern = rf"(?<![0-9A-Za-zА-Яа-яЁё_]){re.escape(word)}(?![0-9A-Za-zА-Яа-яЁё_])"
+
+    return re.search(pattern, text, flags=re.IGNORECASE) is not None
 
 
 class FakeMoexClient:
@@ -337,6 +485,27 @@ def _seed_decisions(SessionLocal):
         create_key_rate_decision(
             session,
             _decision_data(date(2024, 8, 9), "rate_cut"),
+        )
+        create_key_rate_decision(
+            session,
+            _decision_data(date(2024, 8, 16), "rate_hike", is_official=False),
+        )
+        session.commit()
+    finally:
+        session.close()
+
+
+def _seed_non_official_hike_decisions(SessionLocal):
+    session = SessionLocal()
+
+    try:
+        create_key_rate_decision(
+            session,
+            _decision_data(date(2024, 7, 26), "rate_hike", is_official=False),
+        )
+        create_key_rate_decision(
+            session,
+            _decision_data(date(2024, 8, 2), "rate_hike", is_official=False),
         )
         create_key_rate_decision(
             session,

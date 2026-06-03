@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -49,3 +50,48 @@ class HypothesisAnalyzeRequest(BaseModel):
             self.benchmark_ticker = None
 
         return self
+
+
+class KeyRateEventResponse(BaseModel):
+    event_id: str
+    event_date: date
+    event_type: Literal["key_rate"]
+    event_direction: Literal["rate_cut", "rate_hike", "rate_hold"]
+    rate_before: Decimal | None
+    rate_after: Decimal | None
+    change_bps: int | None
+    title: str
+    description: str
+    is_official: bool
+    source_note: str
+
+
+class KeyRateEventsListResponse(BaseModel):
+    items: list[KeyRateEventResponse]
+
+
+class KeyRateDecisionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    decision_date: date
+    rate_before: Decimal | None
+    rate_after: Decimal | None
+    change_bps: int | None
+    direction: Literal["rate_cut", "rate_hike", "rate_hold"]
+    title: str
+    description: str | None
+    is_scheduled: bool
+    is_official: bool
+    source_url: str | None
+    source_type: str | None
+    source_note: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class KeyRateDecisionListResponse(BaseModel):
+    items: list[KeyRateDecisionRead]
+    total: int
+    limit: int
+    offset: int

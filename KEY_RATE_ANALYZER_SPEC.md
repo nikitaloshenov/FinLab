@@ -2,9 +2,9 @@
 
 This document describes the intended product logic for the Key Rate Impact Analyzer.
 
-Status: in development.
+Status: MVP implemented, active development.
 
-The current repository contains the foundation for this direction, including Hypothesis Lab, MOEX candles access and the `key_rate_decisions` database table. The final multi-event analyzer flow is not fully implemented yet.
+The current repository contains the Key Rate Impact Analyzer MVP, including Hypothesis Lab UI, MOEX candles access, the `key_rate_decisions` database table, a curated CSV dataset/importer and a multi-event event-study backend engine.
 
 Related data-layer document:
 
@@ -52,10 +52,8 @@ The user selects:
   - 1 trading day;
   - 3 trading days;
   - 10 trading days;
-  - 30 trading days;
 - benchmark:
   - none;
-  - `IMOEX`, if supported by available market data;
   - `MOEX` as Moscow Exchange stock, not as an index.
 
 The analyzer returns a historical event-study summary.
@@ -101,13 +99,16 @@ The legacy `key_rate_events.py` sample layer exists only as MVP/static fallback 
 5. For each horizon, the system finds the stock price after:
    - 1 trading day;
    - 3 trading days;
-   - 10 trading days;
-   - 30 trading days.
+   - 10 trading days.
 6. The system calculates:
 
 ```text
-return = (price_after / price_event - 1) * 100
+event_candle = first trading candle with date >= decision_date
+event_price = close(event_candle)
+horizon_return = (close(horizon_candle) / event_price - 1) * 100
 ```
+
+If the event candle or a horizon candle is missing, that event/horizon is skipped. Missing data must not be treated as a zero return.
 
 7. For each horizon, the system calculates:
    - event count;
@@ -209,7 +210,7 @@ The first strong version should support:
 - one selected stock;
 - key rate scenario;
 - all historical events of selected direction;
-- horizons 1/3/10/30 trading days;
+- horizons 1/3/10 trading days in the main frontend flow;
 - event count;
 - growth/decline count;
 - average and median return;

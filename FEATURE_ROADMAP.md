@@ -41,16 +41,21 @@ Hypotheses foundation:
 - Static MVP key rate events sample layer.
 - Key rate decisions database foundation.
 - Read API for key rate decisions.
+- Curated key rate decisions CSV dataset.
+- CSV importer with dry-run/upsert flow.
+- Key Rate Impact Analyzer MVP.
+- Event-study backend engine using event-close returns.
+- Optional benchmark comparison.
+- MOEX candles pagination and yearly chunking for long ranges.
 
 ## In Development
 
 Main active direction:
 
-- Historical Key Rate Decisions Dataset.
-- Key Rate Impact Analyzer.
-- Transition from single-event analysis to multi-event historical event-study.
+- Stabilizing the Key Rate Impact Analyzer MVP for demo and merge.
 - Documentation and repository presentation.
-- Improved hypothesis/event analysis logic.
+- Manual validation on real imported key rate decisions and MOEX candles.
+- UI polish around result readability and limitations.
 
 Important note:
 
@@ -58,22 +63,16 @@ The `key_rate_decisions` table is intended for official/imported historical deci
 
 ## Nearest Priority
 
-The main next product step is to rework key rate analysis so it answers:
+The current Key Rate Impact Analyzer MVP answers:
 
 > How did one selected stock historically react to similar key rate decisions?
 
 Near-term tasks:
 
-- Import official historical key rate decisions into `key_rate_decisions`.
-- Add or refine an import flow for key rate decisions.
-- Build multi-event Key Rate Impact Analyzer logic.
-- Analyze horizons: 1, 3, 10 and 30 trading days.
-- Add average/median/min/max return calculations.
-- Add positive/negative/neutral event counts.
-- Add optional benchmark comparison.
-- Improve result explanations and limitations.
-- Add tests for the multi-event analyzer.
-- Keep README and documentation aligned with the real code state.
+- Keep README and documentation aligned with the implemented analyzer.
+- Validate demo scenarios after importing the curated dataset.
+- Improve result explanations and limitations where UI still feels too technical.
+- Add cache/performance strategy for repeated candles and analyzer requests.
 
 ## Later
 

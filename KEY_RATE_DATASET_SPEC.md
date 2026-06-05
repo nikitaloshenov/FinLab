@@ -238,34 +238,34 @@ This is only the strategy. Do not implement an importer in this documentation ta
 
 ## 12. Analyzer Integration
 
-Future Key Rate Impact Analyzer flow:
+Current Key Rate Impact Analyzer MVP flow:
 
 1. User selects:
    - stock;
    - direction: `rate_cut`, `rate_hike` or `rate_hold`;
-   - horizons: 1, 3, 10 and 30 trading days;
+   - horizons: 1, 3 and 10 trading days in the main frontend flow;
    - optional benchmark.
 2. Backend loads `key_rate_decisions` where:
    - `direction = selected_direction`;
    - `is_official = true`.
 3. For each decision, backend uses `decision_date` as the event anchor.
-4. Backend finds baseline stock price.
-5. Backend calculates horizon returns.
-6. Backend aggregates results.
-7. Backend returns summary, horizon table, benchmark comparison and limitations.
+4. Backend finds the first trading candle with date `>= decision_date`.
+5. Backend uses close of that event candle as `event_price`.
+6. Backend calculates horizon returns from event close to close after N trading days.
+7. Backend aggregates results.
+8. Backend returns summary, horizon table, benchmark comparison and limitations.
 
 ## 13. Price Reaction Anchor Logic
 
-MVP daily-candles approach:
+Current MVP daily-candles approach:
 
 - `event_date = decision_date`;
 - `event_trading_day = first MOEX trading date >= decision_date`;
-- `baseline_date = last trading date before event_trading_day`;
-- `baseline_price = close on baseline_date`;
-- `horizon_price = close after 1/3/10/30 trading days from event_trading_day`;
-- `stock_return = (horizon_price / baseline_price - 1) * 100`.
+- `event_price = close on event_trading_day`;
+- `horizon_price = close after 1/3/10 trading days from event_trading_day`;
+- `stock_return = (horizon_price / event_price - 1) * 100`.
 
-Baseline is taken before the reaction because the analyzer should compare the post-decision price with the price before the market fully reacted to the event.
+If the event candle or horizon candle is unavailable, the event/horizon is skipped. Missing market data must not be converted to `0%` because that would falsely mean the stock did not move.
 
 Later, if `publication_datetime_msk` and intraday candles become available, the logic can distinguish:
 
@@ -313,5 +313,5 @@ Recommended sequence:
 4. Add CSV/JSON template.
 5. Implement importer with validation and dry-run.
 6. Import official data into local DB.
-7. Build multi-event Key Rate Impact Analyzer.
-8. Redesign frontend result around horizon table and multi-event summary.
+7. Keep the multi-event Key Rate Impact Analyzer aligned with the imported dataset.
+8. Validate demo scenarios and document dataset limitations clearly.

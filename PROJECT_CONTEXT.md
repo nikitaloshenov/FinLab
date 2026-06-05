@@ -8,21 +8,28 @@ FinLab is not financial advice, not an investment recommendation and not product
 
 ## Current Product Direction
 
-The current main development focus is the Key Rate Impact Analyzer.
+The current main development focus is the Key Rate Impact Analyzer MVP and its demo/readiness polish.
 
 The target product question is:
 
 > How did a selected stock historically react to similar key rate decisions?
 
-The intended direction is to move from a single-event candle-window analysis toward a multi-event event-study flow:
+The implemented MVP moves from a single-event candle-window analysis toward a multi-event event-study flow:
 
 - choose one stock;
 - choose a key rate scenario: `rate_cut`, `rate_hike` or `rate_hold`;
 - optionally choose a benchmark;
 - analyze similar historical key rate decisions;
-- compare returns over 1, 3, 10 and 30 trading days.
+- compare returns over 1, 3 and 10 trading days in the main frontend flow.
 
-This analyzer is in development. The database foundation for official/imported key rate decisions exists, but official historical data import and the final multi-event analyzer flow are still planned.
+The Key Rate Impact Analyzer MVP is implemented. It uses curated/imported historical key rate decisions from the `key_rate_decisions` table and MOEX daily candles. The current calculation uses event-close logic:
+
+- event candle = first trading candle with date `>= decision_date`;
+- event price = close of that event candle;
+- horizon return = close after N trading days divided by event price minus 1;
+- missing event or horizon candles are skipped, not treated as zero returns.
+
+The analyzer returns `summary`, `confidence`, `best_horizon`, `skipped_summary`, `horizon_summary` and optional `event_results`. It remains historical analysis, not a forecast.
 
 Related specs:
 
@@ -134,8 +141,9 @@ Current state:
 
 - `POST /api/v1/hypotheses/analyze` exists and must not be changed casually;
 - static MVP key rate events exist as a legacy/sample layer;
-- `key_rate_decisions` database foundation exists for official/imported key rate decisions;
+- `key_rate_decisions` database table exists for official/imported key rate decisions;
 - `GET /api/v1/hypotheses/key-rate-decisions` reads the DB table and returns an empty list if no data has been imported.
+- `POST /api/v1/hypotheses/key-rate-impact/analyze` runs the Key Rate Impact Analyzer MVP over imported decisions and MOEX candles.
 
 Do not present sample events as official data.
 

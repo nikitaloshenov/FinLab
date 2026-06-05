@@ -1,8 +1,8 @@
 # FinLab
 
-FinLab is a production-like fullstack fintech pet project for monitoring MOEX securities, managing watchlists and price alerts, and gradually evolving into a hypothesis-driven market analysis tool based on historical data.
+FinLab is a production-like fullstack fintech pet project for monitoring MOEX securities, managing watchlists and price alerts, and evolving into a hypothesis-driven market analysis tool based on historical data.
 
-The project started as a Market Watchlist & Alerts dashboard and is now moving toward a Key Rate Impact Analyzer: a tool for studying how selected stocks historically reacted to similar key rate decisions.
+The project started as a Market Watchlist & Alerts dashboard and now includes a Key Rate Impact Analyzer MVP: a tool for studying how selected stocks historically reacted to similar key rate decisions.
 
 ## Project Status
 
@@ -32,7 +32,9 @@ FinLab is built to show more than a simple CRUD dashboard. The goal is to combin
 - Price alerts.
 - Alert events/history.
 - Hypothesis Lab foundation.
-- Key rate decisions database foundation.
+- Key Rate Impact Analyzer MVP.
+- Curated historical key rate decisions dataset and CSV importer.
+- Key rate decisions database table.
 - FastAPI backend API.
 - PostgreSQL persistence.
 - Alembic migrations.
@@ -45,20 +47,22 @@ FinLab is built to show more than a simple CRUD dashboard. The goal is to combin
 
 The current product direction is the Key Rate Impact Analyzer.
 
-Target question:
+Current MVP question:
 
 > How did a selected stock historically react to similar key rate decisions?
 
-Planned analysis flow:
+Current MVP analysis flow:
 
 - choose one stock;
 - choose a key rate scenario: rate cut, rate hike or rate hold;
 - analyze similar historical decisions;
-- compare horizons: 1, 3, 10 and 30 trading days;
+- compare horizons: 1, 3 and 10 trading days;
 - optionally compare with a benchmark;
 - show a human-readable conclusion and limitations.
 
-This flow is in development. The database foundation exists, but official historical data import and the final multi-event analyzer UI are still planned.
+The analyzer uses imported curated key rate decisions and MOEX daily candles. For each decision, it uses the first trading candle on or after `decision_date` as the event candle, then compares the event close with closes after the selected trading-day horizons. Missing candles are skipped, not treated as zero returns.
+
+This is historical analysis, not a forecast and not financial advice.
 
 ## Tech Stack
 
@@ -144,6 +148,7 @@ Hypotheses:
 - `POST /api/v1/hypotheses/analyze`
 - `GET /api/v1/hypotheses/key-rate-events`
 - `GET /api/v1/hypotheses/key-rate-decisions`
+- `POST /api/v1/hypotheses/key-rate-impact/analyze`
 
 ## Local Setup
 

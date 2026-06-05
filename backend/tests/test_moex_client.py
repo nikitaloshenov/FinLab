@@ -62,6 +62,27 @@ def make_moex_candles_payload():
     }
 
 
+def make_moex_candles_payload_page(rows, index, total, page_size):
+    return {
+        "candles": {
+            "columns": [
+                "begin",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "value",
+            ],
+            "data": rows,
+        },
+        "candles.cursor": {
+            "columns": ["INDEX", "TOTAL", "PAGESIZE"],
+            "data": [[index, total, page_size]],
+        },
+    }
+
+
 def test_fetch_ticker_retries_after_http_error(monkeypatch):
     calls = []
 
@@ -165,3 +186,107 @@ def test_fetch_candles_parses_columns_and_data(monkeypatch):
             "value": Decimal("12345678.9"),
         }
     ]
+
+
+def test_fetch_candles_loads_all_cursor_pages(monkeypatch):
+    calls = []
+    pages = {
+        "0": make_moex_candles_payload_page(
+            rows=[
+                ["2024-01-02", 100, 100, 100, 100, 1000, 100000],
+                ["2024-01-03", 101, 101, 101, 101, 1000, 101000],
+            ],
+            index=0,
+            total=4,
+            page_size=2,
+        ),
+        "2": make_moex_candles_payload_page(
+            rows=[
+                ["2024-01-04", 102, 102, 102, 102, 1000, 102000],
+                ["2024-01-05", 103, 103, 103, 103, 1000, 103000],
+            ],
+            index=2,
+            total=4,
+            page_size=2,
+        ),
+    }
+
+    def fake_get(*args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeResponse(pages[kwargs["params"]["start"]])
+
+    monkeypatch.setattr(moex_client_module.httpx, "get", fake_get)
+
+    client = MoexClient(
+        base_url="https://example.test",
+        engine="stock",
+        market="shares",
+        board="TQBR",
+    )
+
+    result = client.fetch_candles(
+        secid="sber",
+        interval="1d",
+        from_date="2024-01-01",
+        till_date="2024-01-10",
+    )
+
+    assert [call[1]["params"]["start"] for call in calls] == ["0", "2"]
+    assert [candle["begin"] for candle in result] == [
+        "2024-01-02",
+        "2024-01-03",
+        "2024-01-04",
+        "2024-01-05",
+    ]
+
+
+def test_fetch_candles_deduplicates_and_sorts_cursor_pages(monkeypatch):
+    calls = []
+    pages = {
+        "0": make_moex_candles_payload_page(
+            rows=[
+                ["2024-01-03", 101, 101, 101, 101, 1000, 101000],
+                ["2024-01-02", 100, 100, 100, 100, 1000, 100000],
+            ],
+            index=0,
+            total=4,
+            page_size=2,
+        ),
+        "2": make_moex_candles_payload_page(
+            rows=[
+                ["2024-01-03", 111, 111, 111, 111, 1000, 111000],
+                ["2024-01-04", 102, 102, 102, 102, 1000, 102000],
+            ],
+            index=2,
+            total=4,
+            page_size=2,
+        ),
+    }
+
+    def fake_get(*args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeResponse(pages[kwargs["params"]["start"]])
+
+    monkeypatch.setattr(moex_client_module.httpx, "get", fake_get)
+
+    client = MoexClient(
+        base_url="https://example.test",
+        engine="stock",
+        market="shares",
+        board="TQBR",
+    )
+
+    result = client.fetch_candles(
+        secid="sber",
+        interval="1d",
+        from_date="2024-01-01",
+        till_date="2024-01-10",
+    )
+
+    assert [call[1]["params"]["start"] for call in calls] == ["0", "2"]
+    assert [candle["begin"] for candle in result] == [
+        "2024-01-02",
+        "2024-01-03",
+        "2024-01-04",
+    ]
+    assert result[1]["close"] == Decimal("111")

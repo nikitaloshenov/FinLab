@@ -462,6 +462,46 @@ def test_key_rate_impact_response_has_no_forbidden_wording(api_client, monkeypat
         assert not _contains_forbidden_word(text, word)
 
 
+def test_key_rate_impact_fetches_long_range_candles_in_year_chunks(
+    api_client,
+    monkeypatch,
+):
+    client, SessionLocal = api_client
+    _seed_long_range_hold_decisions(SessionLocal)
+    YearChunkMoexClient.calls = []
+    monkeypatch.setattr(key_rate_impact_service, "MoexClient", YearChunkMoexClient)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={
+            "main_ticker": "MOEX",
+            "direction": "rate_hold",
+            "horizons": [1],
+            "only_official": True,
+            "include_events": True,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    event_dates = {
+        event["event_trading_date"]
+        for event in data["event_results"]
+        if event["event_trading_date"] is not None
+    }
+
+    assert data["decisions_total"] == 3
+    assert data["decisions_used"] == 3
+    assert "2025-06-06" in event_dates
+    assert data["metadata"]["main_candles"]["latest_date"] >= "2025-06-09"
+    assert len(YearChunkMoexClient.calls) > 1
+    assert all(
+        call["from_date"][:4] == call["till_date"][:4]
+        for call in YearChunkMoexClient.calls
+    )
+
+
 def _contains_forbidden_word(text, word):
     pattern = rf"(?<![0-9A-Za-zА-Яа-яЁё_]){re.escape(word)}(?![0-9A-Za-zА-Яа-яЁё_])"
 
@@ -498,6 +538,33 @@ class BenchmarkFailingMoexClient(FakeMoexClient):
 class MainFailingMoexClient(FakeMoexClient):
     def fetch_candles(self, secid, interval, from_date, till_date):
         raise MoexClientError("main ticker unavailable")
+
+
+class YearChunkMoexClient:
+    calls = []
+
+    def fetch_candles(self, secid, interval, from_date, till_date):
+        self.calls.append(
+            {
+                "secid": secid,
+                "interval": interval,
+                "from_date": from_date,
+                "till_date": till_date,
+            }
+        )
+
+        if from_date[:4] != till_date[:4]:
+            return [
+                candle
+                for candle in _long_range_hold_candles()
+                if candle["begin"] <= "2021-02-15"
+            ]
+
+        return [
+            candle
+            for candle in _long_range_hold_candles()
+            if from_date <= candle["begin"] <= till_date
+        ]
 
 
 def _seed_decisions(SessionLocal):
@@ -540,6 +607,27 @@ def _seed_non_official_hike_decisions(SessionLocal):
         create_key_rate_decision(
             session,
             _decision_data(date(2024, 8, 16), "rate_hike", is_official=False),
+        )
+        session.commit()
+    finally:
+        session.close()
+
+
+def _seed_long_range_hold_decisions(SessionLocal):
+    session = SessionLocal()
+
+    try:
+        create_key_rate_decision(
+            session,
+            _decision_data(date(2019, 3, 22), "rate_hold"),
+        )
+        create_key_rate_decision(
+            session,
+            _decision_data(date(2023, 9, 15), "rate_hold"),
+        )
+        create_key_rate_decision(
+            session,
+            _decision_data(date(2025, 6, 6), "rate_hold"),
         )
         session.commit()
     finally:
@@ -630,6 +718,19 @@ def _benchmark_candles():
         _candle("2024-08-16", "115"),
         _candle("2024-08-19", "116"),
         _candle("2024-08-20", "117"),
+    ]
+
+
+def _long_range_hold_candles():
+    return [
+        _candle("2019-03-22", "100"),
+        _candle("2019-03-25", "101"),
+        _candle("2021-02-12", "110"),
+        _candle("2021-02-15", "111"),
+        _candle("2023-09-15", "120"),
+        _candle("2023-09-18", "121"),
+        _candle("2025-06-06", "130"),
+        _candle("2025-06-09", "131"),
     ]
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -176,7 +176,13 @@ def analyze_key_rate_impact(
         **report["metadata"],
         "source": "key_rate_impact_service",
         "engine": "multi_event_validation",
+        "main_candles": _build_candles_metadata(stock_candles),
     }
+
+    if benchmark_candles is not None:
+        report["metadata"]["benchmark_candles"] = _build_candles_metadata(
+            benchmark_candles,
+        )
 
     report["limitations"] = _deduplicate_strings(
         [*report["limitations"], *limitations]
@@ -210,12 +216,54 @@ def _fetch_daily_candles(
     from_date: str,
     till_date: str,
 ) -> list[dict[str, Any]]:
-    return moex_client.fetch_candles(
-        secid=ticker,
-        interval=DAILY_CANDLE_INTERVAL,
-        from_date=from_date,
-        till_date=till_date,
-    )
+    candles_by_begin: dict[str, dict[str, Any]] = {}
+
+    for chunk_from, chunk_till in _iter_year_chunks(from_date, till_date):
+        chunk_candles = moex_client.fetch_candles(
+            secid=ticker,
+            interval=DAILY_CANDLE_INTERVAL,
+            from_date=chunk_from,
+            till_date=chunk_till,
+        )
+
+        for candle in chunk_candles:
+            begin = candle.get("begin")
+
+            if begin is None:
+                continue
+
+            candles_by_begin[str(begin)] = candle
+
+    return sorted(candles_by_begin.values(), key=lambda candle: str(candle["begin"]))
+
+
+def _iter_year_chunks(from_date: str, till_date: str) -> list[tuple[str, str]]:
+    start = date.fromisoformat(from_date)
+    end = date.fromisoformat(till_date)
+
+    if end < start:
+        return [(from_date, till_date)]
+
+    chunks = []
+    current = start
+
+    while current <= end:
+        year_end = date(current.year, 12, 31)
+        chunk_end = min(year_end, end)
+        chunks.append((current.isoformat(), chunk_end.isoformat()))
+        current = chunk_end + timedelta(days=1)
+
+    return chunks
+
+
+def _build_candles_metadata(candles: list[dict[str, Any]]) -> dict[str, Any]:
+    begins = sorted(str(candle["begin"]) for candle in candles if candle.get("begin"))
+
+    return {
+        "count": len(candles),
+        "earliest_date": begins[0] if begins else None,
+        "latest_date": begins[-1] if begins else None,
+    }
 
 
 def _empty_report(

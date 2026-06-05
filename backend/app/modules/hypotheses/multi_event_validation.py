@@ -166,7 +166,7 @@ def analyze_single_decision_reaction(
     decision_date = _parse_date(decision.get("decision_date"))
     event_row = _build_event_base(decision)
     event_row["horizons"] = [
-        _skipped_horizon(horizon, "event_unavailable")
+        _skipped_horizon(horizon, "missing_event_candle")
         for horizon in horizons
     ]
 
@@ -175,26 +175,33 @@ def analyze_single_decision_reaction(
         event_row["skip_reason"] = "invalid_decision_date"
         return event_row
 
-    event_candle = find_event_trading_day(normalized_candles, decision_date)
-
-    if event_candle is None:
+    if not normalized_candles:
         event_row["status"] = "skipped"
-        event_row["skip_reason"] = "event_trading_day_not_found"
-        return event_row
-
-    event_row["event_trading_date"] = event_candle["begin"].isoformat()
-    baseline_candle = find_baseline_candle(normalized_candles, event_candle)
-
-    if baseline_candle is None:
-        event_row["status"] = "skipped"
-        event_row["skip_reason"] = "baseline_not_found"
+        event_row["skip_reason"] = "empty_candles"
         event_row["horizons"] = [
-            _skipped_horizon(horizon, "baseline_not_found")
+            _skipped_horizon(horizon, "empty_candles")
             for horizon in horizons
         ]
         return event_row
 
-    event_row["baseline_date"] = baseline_candle["begin"].isoformat()
+    event_candle = find_event_trading_day(normalized_candles, decision_date)
+
+    if event_candle is None:
+        event_row["status"] = "skipped"
+        event_row["skip_reason"] = "missing_event_candle"
+        return event_row
+
+    event_row["event_trading_date"] = event_candle["begin"].isoformat()
+    event_row["event_price"] = event_candle["close"]
+
+    if event_candle["close"] == DECIMAL_ZERO:
+        event_row["status"] = "skipped"
+        event_row["skip_reason"] = "invalid_price"
+        event_row["horizons"] = [
+            _skipped_horizon(horizon, "invalid_price")
+            for horizon in horizons
+        ]
+        return event_row
 
     horizon_results = []
 
@@ -207,18 +214,18 @@ def analyze_single_decision_reaction(
 
         if horizon_candle is None:
             horizon_results.append(
-                _skipped_horizon(int(horizon), "horizon_candle_not_found")
+                _skipped_horizon(int(horizon), "missing_horizon_candle")
             )
             continue
 
         return_percent = calculate_return_percent(
-            baseline_price=baseline_candle["close"],
+            baseline_price=event_candle["close"],
             horizon_price=horizon_candle["close"],
         )
 
         if return_percent is None:
             horizon_results.append(
-                _skipped_horizon(int(horizon), "baseline_price_is_zero")
+                _skipped_horizon(int(horizon), "invalid_price")
             )
             continue
 
@@ -247,7 +254,7 @@ def analyze_single_decision_reaction(
         event_row["skip_reason"] = "some_horizons_missing"
     else:
         event_row["status"] = "skipped"
-        event_row["skip_reason"] = "horizon_candle_not_found"
+        event_row["skip_reason"] = "missing_horizon_candle"
 
     return event_row
 
@@ -462,6 +469,7 @@ def _build_event_base(decision: dict[str, Any]) -> dict[str, Any]:
     return {
         "decision_date": decision_date.isoformat() if decision_date else None,
         "event_trading_date": None,
+        "event_price": None,
         "baseline_date": None,
         "rate_before": decision.get("rate_before"),
         "rate_after": decision.get("rate_after"),

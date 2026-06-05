@@ -7,7 +7,6 @@ from app.modules.hypotheses.multi_event_validation import (
     build_horizon_summary,
     calculate_return_percent,
     classify_return_strength,
-    find_baseline_candle,
     find_event_trading_day,
     find_horizon_candle,
     normalize_candles,
@@ -33,34 +32,34 @@ def test_normalize_candles_sorts_dates_and_skips_invalid_rows():
     assert candles[0]["close"] == Decimal("100")
 
 
-def test_event_anchor_uses_event_day_and_previous_baseline():
+def test_event_anchor_uses_event_day_candle():
     candles = normalize_candles(_stock_candles())
     event_candle = find_event_trading_day(candles, date(2024, 7, 26))
-    baseline_candle = find_baseline_candle(candles, event_candle)
 
     assert event_candle["begin"] == date(2024, 7, 26)
-    assert baseline_candle["begin"] == date(2024, 7, 25)
+    assert event_candle["close"] == Decimal("101")
 
 
 def test_event_anchor_on_non_trading_day_uses_next_trading_day():
     candles = normalize_candles(_stock_candles())
     event_candle = find_event_trading_day(candles, "2024-07-27")
-    baseline_candle = find_baseline_candle(candles, event_candle)
 
     assert event_candle["begin"] == date(2024, 7, 29)
-    assert baseline_candle["begin"] == date(2024, 7, 26)
+    assert event_candle["close"] == Decimal("103")
 
 
-def test_missing_baseline_skips_single_decision():
+def test_first_available_event_candle_does_not_require_previous_baseline():
     result = analyze_single_decision_reaction(
         decision=_decision("2024-07-25"),
         stock_candles=_stock_candles(),
         horizons=(1,),
     )
 
-    assert result["status"] == "skipped"
-    assert result["skip_reason"] == "baseline_not_found"
-    assert result["horizons"][0]["status"] == "skipped"
+    assert result["status"] == "ok"
+    assert result["event_trading_date"] == "2024-07-25"
+    assert result["baseline_date"] is None
+    assert result["event_price"] == Decimal("100")
+    assert result["horizons"][0]["stock_return_percent"] == Decimal("1.000000")
 
 
 def test_horizon_logic_calculates_trading_day_returns():
@@ -89,7 +88,7 @@ def test_insufficient_horizon_data_marks_horizon_skipped():
     assert result["status"] == "partial"
     assert result["horizons"][0]["status"] == "ok"
     assert result["horizons"][1]["status"] == "skipped"
-    assert result["horizons"][1]["skip_reason"] == "horizon_candle_not_found"
+    assert result["horizons"][1]["skip_reason"] == "missing_horizon_candle"
 
 
 def test_return_classification_thresholds():
@@ -125,10 +124,35 @@ def test_single_decision_reaction_returns_event_row():
 
     assert result["decision_date"] == "2024-07-26"
     assert result["event_trading_date"] == "2024-07-26"
-    assert result["baseline_date"] == "2024-07-25"
+    assert result["baseline_date"] is None
+    assert result["event_price"] == Decimal("101")
     assert result["status"] == "ok"
-    assert result["horizons"][0]["stock_return_percent"] == Decimal("3.000000")
-    assert result["horizons"][1]["stock_return_percent"] == Decimal("8.000000")
+    assert result["horizons"][0]["stock_return_percent"] == Decimal("1.980198")
+    assert result["horizons"][1]["stock_return_percent"] == Decimal("6.930693")
+
+
+def test_missing_event_candle_skips_without_fake_zero_return():
+    result = analyze_single_decision_reaction(
+        decision=_decision("2024-09-01"),
+        stock_candles=_stock_candles(),
+        horizons=(1,),
+    )
+
+    assert result["status"] == "skipped"
+    assert result["skip_reason"] == "missing_event_candle"
+    assert result["horizons"][0]["stock_return_percent"] is None
+
+
+def test_empty_candles_skip_without_fake_zero_return():
+    result = analyze_single_decision_reaction(
+        decision=_decision("2024-07-26"),
+        stock_candles=[],
+        horizons=(1,),
+    )
+
+    assert result["status"] == "skipped"
+    assert result["skip_reason"] == "empty_candles"
+    assert result["horizons"][0]["stock_return_percent"] is None
 
 
 def test_horizon_summary_aggregates_counts_and_returns():
@@ -196,13 +220,14 @@ def test_benchmark_returns_and_relative_summary_are_calculated():
     first_horizon = report["event_results"][0]["horizons"][0]
     benchmark_summary = report["benchmark_summary"][0]
 
+    assert first_horizon["stock_return_percent"] == Decimal("1.980198")
     assert first_horizon["benchmark_return_percent"] == Decimal("1.000000")
-    assert first_horizon["relative_return_percent"] == Decimal("2.000000")
+    assert first_horizon["relative_return_percent"] == Decimal("0.980198")
     assert benchmark_summary["benchmark_events_with_data"] == 2
     assert benchmark_summary["average_relative_return_percent"] == Decimal(
-        "1.856644"
+        "0.906766"
     )
-    assert benchmark_summary["outperformed_count"] == 2
+    assert benchmark_summary["outperformed_count"] == 0
 
 
 def test_missing_benchmark_data_does_not_fail_report():

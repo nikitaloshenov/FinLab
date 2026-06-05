@@ -1,12 +1,72 @@
-# FinLab — Market Watchlist & Alerts
+# FinLab
 
-FinLab — учебное fullstack-приложение для мониторинга MOEX-тикеров. Проект позволяет вести watchlist, получать рыночные данные через MOEX ISS API, хранить последнюю цену в PostgreSQL, смотреть Market Chart по MOEX candles, создавать price alerts и смотреть историю срабатываний alert'ов через React frontend.
+FinLab is a production-like fullstack fintech pet project for monitoring MOEX securities, managing watchlists and price alerts, and evolving into a hypothesis-driven market analysis tool based on historical data.
 
-Проект находится в MVP-стадии, но уже имеет рабочий backend, frontend, PostgreSQL, Alembic migrations, batch endpoints и первые tests.
+The project started as a Market Watchlist & Alerts dashboard and now includes a Key Rate Impact Analyzer MVP: a tool for studying how selected stocks historically reacted to similar key rate decisions.
 
-## Стек технологий
+## Project Status
 
-### Backend
+- Active development.
+- Backend and frontend MVP are working.
+- Not production-ready yet.
+- Not financial advice and not an investment recommendation.
+- Screenshots will be added after UI stabilization.
+
+## Why This Project Exists
+
+FinLab is built to show more than a simple CRUD dashboard. The goal is to combine market monitoring with historical hypothesis validation:
+
+- monitor MOEX securities;
+- keep a personal watchlist;
+- refresh latest prices;
+- track price alerts;
+- inspect market candles;
+- analyze historical stock reactions to market or macro events.
+
+## Current Features
+
+- MOEX ISS market data integration.
+- Watchlist management.
+- Latest price refresh for one ticker or the whole watchlist.
+- Market Chart based on MOEX candles.
+- Price alerts.
+- Alert events/history.
+- Hypothesis Lab foundation.
+- Key Rate Impact Analyzer MVP.
+- Curated historical key rate decisions dataset and CSV importer.
+- Key rate decisions database table.
+- FastAPI backend API.
+- PostgreSQL persistence.
+- Alembic migrations.
+- React/Vite frontend.
+- Backend unit and API integration tests.
+- GitHub Actions CI.
+- Branch workflow: `main`, `develop`, `feature/*`.
+
+## Main Development Direction
+
+The current product direction is the Key Rate Impact Analyzer.
+
+Current MVP question:
+
+> How did a selected stock historically react to similar key rate decisions?
+
+Current MVP analysis flow:
+
+- choose one stock;
+- choose a key rate scenario: rate cut, rate hike or rate hold;
+- analyze similar historical decisions;
+- compare horizons: 1, 3 and 10 trading days;
+- optionally compare with a benchmark;
+- show a human-readable conclusion and limitations.
+
+The analyzer uses imported curated key rate decisions and MOEX daily candles. For each decision, it uses the first trading candle on or after `decision_date` as the event candle, then compares the event close with closes after the selected trading-day horizons. Missing candles are skipped, not treated as zero returns.
+
+This is historical analysis, not a forecast and not financial advice.
+
+## Tech Stack
+
+Backend:
 
 - Python
 - FastAPI
@@ -15,58 +75,51 @@ FinLab — учебное fullstack-приложение для монитори
 - Alembic
 - Pytest
 - httpx
-- Docker для PostgreSQL
+- MOEX ISS API integration
 
-### Frontend
+Frontend:
 
 - React
 - Vite
 - JavaScript
 - CSS
+- Backend API integration
+- Dashboard UI
 
-## Возможности проекта
+Infrastructure:
 
-- Добавить тикер в watchlist.
-- Удалить тикер из watchlist.
-- Обновить цену одного тикера.
-- Обновить цены всех тикеров через backend batch endpoint.
-- Смотреть Market Chart по MOEX candles.
-- Создать price alert.
-- Проверить один alert.
-- Проверить все активные alerts через backend batch endpoint.
-- Посмотреть историю alert events.
-- Использовать retry/timeout для MOEX client.
-- Запускать первые backend tests.
+- Docker Compose for PostgreSQL
+- GitHub Actions CI
+- Root `.env.example`
 
-## Архитектура проекта
+## Architecture
 
-```text
-backend/app/core
-backend/app/modules/market
-backend/app/modules/watchlist
-backend/app/modules/alerts
-backend/app/shared
-frontend/src/pages
-frontend/src/features
-frontend/src/shared/api
-```
+Backend modules follow a simple layered structure:
 
-Backend организован по модульному принципу:
+- `router.py` - HTTP endpoints.
+- `service.py` - business logic.
+- `repository.py` - database access.
+- `schemas.py` - Pydantic request/response schemas.
+- `models.py` - SQLAlchemy models.
+- external clients - integration with outside APIs such as MOEX ISS.
 
-- `router.py` — HTTP endpoints.
-- `service.py` — бизнес-логика.
-- `repository.py` — работа с базой данных.
-- `schemas.py` — Pydantic-схемы request/response.
-- `models.py` — SQLAlchemy-модели.
+Main backend modules:
 
-## Основные API endpoints
+- `market`
+- `watchlist`
+- `alerts`
+- `hypotheses`
 
-### Health
+Frontend is organized around a dashboard page and feature-level sections for market data, watchlist, alerts and hypotheses.
+
+## API Overview
+
+Health:
 
 - `GET /api/v1/health`
 - `GET /api/v1/health/db`
 
-### Market
+Market:
 
 - `GET /api/v1/market/tickers`
 - `GET /api/v1/market/tickers/{secid}/moex`
@@ -74,14 +127,14 @@ Backend организован по модульному принципу:
 - `GET /api/v1/market/tickers/{secid}/price`
 - `GET /api/v1/market/tickers/{secid}/candles`
 
-### Watchlist
+Watchlist:
 
 - `GET /api/v1/watchlist`
 - `POST /api/v1/watchlist/items`
 - `DELETE /api/v1/watchlist/items/{secid}`
 - `POST /api/v1/watchlist/refresh-prices`
 
-### Alerts
+Alerts:
 
 - `GET /api/v1/alerts`
 - `POST /api/v1/alerts`
@@ -90,55 +143,38 @@ Backend организован по модульному принципу:
 - `DELETE /api/v1/alerts/{alert_id}`
 - `GET /api/v1/alerts/events`
 
-## Переменные окружения
+Hypotheses:
 
-Пример переменных окружения находится в корне проекта:
+- `POST /api/v1/hypotheses/analyze`
+- `GET /api/v1/hypotheses/key-rate-events`
+- `GET /api/v1/hypotheses/key-rate-decisions`
+- `POST /api/v1/hypotheses/key-rate-impact/analyze`
 
-```text
-.env.example
-```
+## Local Setup
 
-`.env.example` служит общим шаблоном переменных для проекта. Для локального запуска backend нужно создать `backend/.env` на основе корневого `.env.example`. Реальные `.env`-файлы не нужно коммитить.
-
-Frontend может работать без `frontend/.env`: для `VITE_API_BASE_URL` есть fallback на локальный backend. При необходимости `VITE_API_BASE_URL` можно задать в `frontend/.env` или в окружении сборки.
-
-Основные переменные:
-
-- `APP_NAME` — название приложения.
-- `APP_ENV` — окружение приложения.
-- `API_V1_PREFIX` — префикс backend API.
-- `DATABASE_URL` — строка подключения к PostgreSQL.
-- `MOEX_BASE_URL` — базовый URL MOEX ISS API.
-- `MOEX_DEFAULT_ENGINE` — engine MOEX по умолчанию.
-- `MOEX_DEFAULT_MARKET` — market MOEX по умолчанию.
-- `MOEX_DEFAULT_BOARD` — board MOEX по умолчанию.
-- `MOEX_TIMEOUT_SECONDS` — timeout HTTP-запросов к MOEX.
-- `MOEX_RETRY_ATTEMPTS` — количество попыток запроса к MOEX.
-- `MOEX_RETRY_DELAY_SECONDS` — пауза между попытками.
-- `BACKEND_CORS_ORIGINS` — разрешенные origins для CORS.
-- `VITE_API_BASE_URL` — базовый URL backend API для frontend.
-
-## Локальный запуск
-
-### 1. Поднять PostgreSQL
-
-Перед запуском backend можно поднять PostgreSQL и проверить Docker одной командой:
+Create a backend env file from the root template:
 
 ```powershell
-.\scripts\start-dev.ps1
+cd backend
+Copy-Item ..\.env.example .\.env
 ```
 
-Или запустить PostgreSQL напрямую:
+Start PostgreSQL:
 
 ```powershell
 docker compose up -d postgres
 ```
 
-### 2. Запустить backend
+Or use the helper script from the project root:
+
+```powershell
+.\scripts\start-dev.ps1
+```
+
+Run backend:
 
 ```powershell
 cd backend
-Copy-Item ..\.env.example .\.env
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
@@ -146,11 +182,7 @@ alembic upgrade head
 python -m uvicorn app.main:app --reload
 ```
 
-Backend: http://127.0.0.1:8000
-
-Swagger: http://127.0.0.1:8000/docs
-
-### 3. Запустить frontend
+Run frontend:
 
 ```powershell
 cd frontend
@@ -158,49 +190,54 @@ npm install
 npm run dev
 ```
 
-Frontend: http://localhost:5173
+Local URLs:
 
-## Тесты
+- Backend: http://127.0.0.1:8000
+- Swagger: http://127.0.0.1:8000/docs
+- Frontend: http://localhost:5173
+
+## Tests
 
 ```powershell
 cd backend
 python -m pytest
 ```
 
-Сейчас тестами покрыто:
+CI also runs backend tests and frontend build.
 
-- alert condition logic;
-- alert messages;
-- MOEX retry/invalid JSON handling;
-- MOEX candles API contract;
-- batch service behavior.
+## Documentation
 
-## Текущий статус
+- [Project Context](PROJECT_CONTEXT.md)
+- [Feature Roadmap](FEATURE_ROADMAP.md)
+- [Key Rate Analyzer Spec](KEY_RATE_ANALYZER_SPEC.md)
+- [Key Rate Dataset Spec](KEY_RATE_DATASET_SPEC.md)
+- [Audit Log](AUDIT_LOG.md)
 
-Проект находится в MVP-стадии. Уже реализованы рабочий backend, frontend, PostgreSQL, migrations, batch endpoints и первые tests. Проект не является production-ready.
+## Engineering Focus
 
-## Roadmap
+This project demonstrates:
 
-### Ближайшие улучшения
+- backend API design;
+- modular FastAPI architecture;
+- SQLAlchemy models and repositories;
+- Alembic migrations;
+- external market data integration;
+- error handling and validation;
+- backend testing;
+- CI setup;
+- frontend-backend integration;
+- product-oriented development around financial market data.
 
-- GitHub Actions для `pytest` и frontend build.
-- Разнести `MarketPage.jsx` на компоненты.
-- Добавить централизованные exception handlers.
-- Расширить backend tests.
+## Limitations
 
-### Позже
+- The project is in active development.
+- It is not production-ready.
+- It has no authentication yet.
+- It depends on external market data availability.
+- It should not be used for real trading decisions.
+- UI and analysis flows may change.
+- No public deployment URL is provided yet.
 
-- Улучшить Market Chart: hover, подсказки, дополнительные метрики.
-- Portfolio tracker.
-- Risk/analyzer module.
-- Telegram/email notifications.
-- Docker для backend/frontend.
-- Soft delete для alerts.
+## For Employers
 
-## Важные ограничения
-
-- Это учебный проект.
-- Пока нет авторизации.
-- Пока нет background jobs.
-- Пока нет production deploy.
-- Docker сейчас используется только для PostgreSQL.
+FinLab demonstrates the ability to design and develop a backend-focused fullstack application with real external data, database persistence, API design, migrations, testing, CI, frontend integration and a clear product development direction.

@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -49,3 +50,103 @@ class HypothesisAnalyzeRequest(BaseModel):
             self.benchmark_ticker = None
 
         return self
+
+
+class KeyRateImpactAnalyzeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    main_ticker: str = Field(min_length=1, max_length=32)
+    direction: Literal["rate_cut", "rate_hike", "rate_hold"]
+    benchmark_ticker: str | None = None
+    horizons: list[int] = Field(default_factory=lambda: [1, 3, 10, 30])
+    only_official: bool = True
+    include_events: bool = True
+    max_events: int | None = Field(default=None, ge=1, le=200)
+
+    @field_validator("main_ticker")
+    @classmethod
+    def validate_main_ticker(cls, ticker: str) -> str:
+        normalized_ticker = ticker.strip().upper()
+
+        if not normalized_ticker:
+            raise ValueError("main_ticker cannot be empty")
+
+        return normalized_ticker
+
+    @field_validator("benchmark_ticker")
+    @classmethod
+    def validate_impact_benchmark_ticker(cls, ticker: str | None) -> str | None:
+        if ticker is None:
+            return None
+
+        normalized_ticker = ticker.strip().upper()
+
+        return normalized_ticker or None
+
+    @field_validator("horizons")
+    @classmethod
+    def validate_horizons(cls, horizons: list[int]) -> list[int]:
+        allowed_horizons = {1, 3, 10, 30}
+        normalized_horizons = []
+
+        for horizon in horizons:
+            if horizon not in allowed_horizons:
+                raise ValueError("horizons can contain only 1, 3, 10, 30")
+
+            if horizon not in normalized_horizons:
+                normalized_horizons.append(horizon)
+
+        if not normalized_horizons:
+            raise ValueError("horizons cannot be empty")
+
+        return normalized_horizons
+
+
+class KeyRateEventResponse(BaseModel):
+    event_id: str
+    event_date: date
+    event_type: Literal["key_rate"]
+    event_direction: Literal["rate_cut", "rate_hike", "rate_hold"]
+    rate_before: Decimal | None
+    rate_after: Decimal | None
+    change_bps: int | None
+    title: str
+    description: str
+    is_official: bool
+    source_note: str
+
+
+class KeyRateEventsListResponse(BaseModel):
+    items: list[KeyRateEventResponse]
+
+
+class KeyRateDecisionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    decision_date: date
+    meeting_date: date | None
+    effective_date: date | None
+    publication_datetime_msk: datetime | None
+    rate_before: Decimal | None
+    rate_after: Decimal | None
+    change_bps: int | None
+    direction: Literal["rate_cut", "rate_hike", "rate_hold"]
+    title: str
+    description: str | None
+    is_scheduled: bool
+    is_official: bool
+    source_url: str | None
+    source_title: str | None
+    source_type: str | None
+    source_note: str | None
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class KeyRateDecisionListResponse(BaseModel):
+    items: list[KeyRateDecisionRead]
+    total: int
+    limit: int
+    offset: int

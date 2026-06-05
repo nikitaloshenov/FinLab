@@ -9,6 +9,8 @@ from typing import Literal
 EventDirection = Literal["rate_cut", "rate_hike", "rate_hold"]
 
 
+# TODO: This is an MVP/static sample legacy layer.
+# Production key-rate analysis should use the key_rate_decisions table.
 class KeyRateEventNotFoundError(Exception):
     pass
 

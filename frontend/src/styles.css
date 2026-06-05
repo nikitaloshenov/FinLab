@@ -26,6 +26,13 @@
   --shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
 }
 
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   font-family:
@@ -456,6 +463,8 @@ input::placeholder {
 }
 
 .tableWrapper {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -880,7 +889,8 @@ td {
 }
 
 .hypothesisSection {
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .hypothesisHeader {
@@ -911,9 +921,12 @@ td {
 
 .hypothesisLayout {
   display: grid;
-  grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
-  gap: 18px;
+  grid-template-columns: minmax(320px, 0.74fr) minmax(0, 1.26fr);
+  gap: 16px;
   align-items: start;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .hypothesisForm,
@@ -921,24 +934,26 @@ td {
 .resultBlock,
 .assessmentCard {
   min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
 .hypothesisForm {
-  padding: 16px;
+  padding: 14px;
 }
 
 .hypothesisGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .hypothesisField {
   display: grid;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -948,18 +963,20 @@ td {
 
 .hypothesisPreview {
   grid-column: 1 / -1;
-  margin-top: 14px;
-  padding: 12px;
+  margin-top: 12px;
+  padding: 10px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(56, 189, 248, 0.08);
+  background: rgba(20, 31, 47, 0.44);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .hypothesisPreview span {
   display: block;
   margin-bottom: 7px;
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -968,33 +985,42 @@ td {
 .hypothesisPreview strong {
   display: block;
   color: var(--text);
-  line-height: 1.3;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .hypothesisPreview p {
   margin: 6px 0 0;
   color: var(--muted);
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .hypothesisHint {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
 .hypothesisField span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
+.hypothesisField input,
+.hypothesisField select {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 15px;
+}
+
 .hypothesisTextarea {
   width: 100%;
-  min-height: 104px;
+  min-height: 86px;
   resize: vertical;
   padding: 11px 12px;
   border: 1px solid var(--border-strong);
@@ -1014,33 +1040,153 @@ td {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 12px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .tickerChip {
   min-height: 30px;
-  padding: 6px 9px;
+  padding: 6px 10px;
   border-color: var(--border-strong);
   border-radius: 999px;
   background: var(--surface-soft);
   color: var(--muted-strong);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .tickerChip.active {
-  border-color: rgba(250, 204, 21, 0.45);
-  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+.hypothesisControlGroup {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hypothesisControlLabel {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hypothesisCheckboxGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.horizonSegment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.horizonPill {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(20, 31, 47, 0.62);
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.horizonPill.active {
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+.inlineWarning {
+  margin: 0;
   color: var(--warning);
+  font-size: 12px;
+}
+
+.hypothesisCheckbox,
+.hypothesisToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(20, 31, 47, 0.55);
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.hypothesisCheckbox input {
+  accent-color: var(--accent);
+}
+
+.hypothesisToggle {
+  justify-content: space-between;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.hypothesisToggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggleSwitch {
+  order: 2;
+  position: relative;
+  width: 38px;
+  height: 20px;
+  margin-left: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(8, 13, 22, 0.72);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.toggleSwitch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--muted);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.hypothesisToggle input:checked + .toggleSwitch {
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.hypothesisToggle input:checked + .toggleSwitch::after {
+  transform: translateX(18px);
+  background: var(--accent);
 }
 
 .hypothesisActions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: 14px;
+}
+
+.hypothesisActions .primaryButton {
+  min-width: 178px;
 }
 
 .hypothesisError {
@@ -1049,14 +1195,18 @@ td {
 
 .hypothesisResult {
   display: grid;
-  gap: 14px;
-  max-height: 760px;
-  overflow-y: auto;
-  padding: 14px;
+  gap: 16px;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .assessmentCard {
-  padding: 16px;
+  padding: 22px;
   background:
     linear-gradient(135deg, rgba(56, 189, 248, 0.12), transparent 46%),
     var(--surface);
@@ -1065,14 +1215,15 @@ td {
 .assessmentCard h3 {
   margin: 12px 0 0;
   color: var(--text);
-  font-size: 20px;
-  text-transform: capitalize;
+  font-size: 24px;
+  line-height: 1.22;
 }
 
 .assessmentCard p {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   color: var(--muted-strong);
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .assessmentBadge {
@@ -1080,10 +1231,10 @@ td {
   align-items: center;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 5px 9px;
   background: var(--surface-soft);
   color: var(--muted-strong);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1095,7 +1246,19 @@ td {
   color: var(--positive);
 }
 
+.assessmentBadge.positive {
+  border-color: rgba(134, 239, 172, 0.28);
+  background: var(--positive-bg);
+  color: var(--positive);
+}
+
 .assessmentBadge.contradicts {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: var(--negative-bg);
+  color: var(--negative);
+}
+
+.assessmentBadge.negative {
   border-color: rgba(248, 113, 113, 0.32);
   background: var(--negative-bg);
   color: var(--negative);
@@ -1107,8 +1270,20 @@ td {
   color: var(--warning);
 }
 
+.assessmentBadge.mixed,
+.assessmentBadge.neutral,
+.assessmentBadge.insufficient_data {
+  border-color: rgba(250, 204, 21, 0.3);
+  background: rgba(250, 204, 21, 0.1);
+  color: var(--warning);
+}
+
 .resultBlock {
-  padding: 14px;
+  padding: 18px;
+}
+
+.secondaryResultBlock {
+  background: rgba(15, 23, 36, 0.72);
 }
 
 .resultBlockHeader {
@@ -1123,8 +1298,17 @@ td {
 .argumentColumns h3 {
   margin: 0;
   color: var(--text);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.25;
+}
+
+.resultPairGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .resultBlockHeader span {
@@ -1137,7 +1321,7 @@ td {
 .resultMetricsGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 9px;
 }
 
 .resultMetricsGrid.compact {
@@ -1150,7 +1334,7 @@ td {
 .watchFactorList article,
 .suggestedAlertList article {
   min-width: 0;
-  padding: 12px;
+  padding: 11px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: rgba(20, 31, 47, 0.55);
@@ -1162,7 +1346,7 @@ td {
 .suggestedAlertList span {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1173,8 +1357,16 @@ td {
   margin-top: 7px;
   overflow-wrap: anywhere;
   color: var(--text);
-  font-size: 17px;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.insightValue {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text);
+  font-size: 19px;
   line-height: 1.25;
 }
 
@@ -1206,9 +1398,10 @@ td {
 .watchFactorList p,
 .suggestedAlertList p,
 .resultHint {
-  margin: 8px 0 0;
+  margin: 9px 0 0;
   color: var(--muted);
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.58;
 }
 
 .argumentColumns {
@@ -1244,11 +1437,147 @@ td {
 
 .limitationList {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   margin: 0;
   padding-left: 18px;
   color: var(--muted);
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.summaryStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.summaryStats span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(20, 31, 47, 0.58);
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.benchmarkInlineNote {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.compactTable {
+  max-height: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.compactTable table {
+  width: 100%;
+  min-width: 0;
+  table-layout: auto;
+}
+
+.compactTable th,
+.compactTable td {
+  padding: 13px 12px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.compactTable th {
+  font-size: 14px;
+}
+
+.compactTable td:nth-child(5),
+.compactTable th:nth-child(5) {
+  white-space: normal;
+  min-width: 112px;
+}
+
+.compactTable td.positive {
+  color: var(--positive);
+}
+
+.compactTable td.negative {
+  color: var(--negative);
+}
+
+.mutedDataRow {
+  opacity: 0.76;
+}
+
+.mutedDataRow td.positive,
+.mutedDataRow td.negative {
+  color: var(--muted-strong);
+}
+
+.tableSubtext {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.eventDetails summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.detailsBody,
+.detailsList {
+  margin-top: 12px;
+}
+
+.eventDetailsList {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  margin-top: 12px;
+  overflow-y: auto;
+}
+
+.eventDetailsList article {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(20, 31, 47, 0.55);
+}
+
+.eventDetailsList strong {
+  display: block;
+  color: var(--text);
+}
+
+.eventDetailsList p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.eventDetailsList div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.eventDetailsList span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: var(--muted-strong);
+  font-size: 13px;
 }
 
 @media (max-width: 1120px) {
@@ -1345,6 +1674,7 @@ td {
   }
 
   .hypothesisGrid,
+  .resultPairGrid,
   .resultMetricsGrid,
   .resultMetricsGrid.compact,
   .mechanismGrid,
@@ -1363,6 +1693,10 @@ td {
   .hypothesisResult {
     max-height: none;
     overflow-y: visible;
+  }
+
+  .compactTable table {
+    min-width: 560px;
   }
 }
 

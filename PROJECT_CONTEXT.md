@@ -1,299 +1,273 @@
-КОНТЕКСТ ПРОЕКТА ДЛЯ CODEX
+# FinLab Project Context
 
-Название проекта: FinLab.
+FinLab is a production-like fullstack fintech pet project in active development.
 
-Это учебный fullstack-проект, но код должен быть похож на нормальный рабочий backend/frontend проект. Сейчас основной модуль проекта — Market Watchlist & Alerts.
+The project started as a MOEX market monitoring dashboard with watchlists, latest prices, market charts and price alerts. It is now gradually evolving into a hypothesis-driven market analysis tool based on historical market data.
 
-Проект состоит из backend и frontend.
+FinLab is not financial advice, not an investment recommendation and not production-ready yet.
+
+## Current Product Direction
+
+The current main development focus is the Key Rate Impact Analyzer MVP and its demo/readiness polish.
+
+The target product question is:
+
+> How did a selected stock historically react to similar key rate decisions?
+
+The implemented MVP moves from a single-event candle-window analysis toward a multi-event event-study flow:
+
+- choose one stock;
+- choose a key rate scenario: `rate_cut`, `rate_hike` or `rate_hold`;
+- optionally choose a benchmark;
+- analyze similar historical key rate decisions;
+- compare returns over 1, 3 and 10 trading days in the main frontend flow.
+
+The Key Rate Impact Analyzer MVP is implemented. It uses curated/imported historical key rate decisions from the `key_rate_decisions` table and MOEX daily candles. The current calculation uses event-close logic:
+
+- event candle = first trading candle with date `>= decision_date`;
+- event price = close of that event candle;
+- horizon return = close after N trading days divided by event price minus 1;
+- missing event or horizon candles are skipped, not treated as zero returns.
+
+The analyzer returns `summary`, `confidence`, `best_horizon`, `skipped_summary`, `horizon_summary` and optional `event_results`. It remains historical analysis, not a forecast.
+
+Related specs:
+
+- `KEY_RATE_ANALYZER_SPEC.md` describes the intended analyzer product logic.
+- `KEY_RATE_DATASET_SPEC.md` describes the dataset strategy for historical key rate decisions.
+
+## Tech Stack
 
 Backend:
+
 - Python
 - FastAPI
-- SQLAlchemy ORM
+- SQLAlchemy
 - PostgreSQL
 - Alembic
-- Docker пока используется только для PostgreSQL
-- папка backend/
+- Pytest
+- httpx
+- MOEX ISS API integration
 
 Frontend:
-- Vite
+
 - React
-- обычный CSS
-- папка frontend/
+- Vite
+- JavaScript
+- CSS
+- API integration with the backend
+- Dashboard UI
 
-Главная цель проекта:
-Сделать небольшую систему мониторинга рынка, где пользователь может:
-- добавлять тикеры MOEX в watchlist;
-- получать данные по тикерам из MOEX ISS API;
-- сохранять тикеры и последнюю цену в PostgreSQL;
-- строить Market Chart по MOEX candles напрямую из MOEX ISS API;
-- хранить последнюю цену;
-- создавать price alerts;
-- вручную проверять alerts;
-- видеть историю срабатывания alerts;
-- пользоваться всем этим через React frontend.
+Infrastructure:
 
-АРХИТЕКТУРА BACKEND
+- Docker Compose for PostgreSQL
+- GitHub Actions CI
+- Root `.env.example`
+- Branch workflow: `main`, `develop`, `feature/*`
 
+## Backend Structure
+
+```text
 backend/app/
-- core/
-  - config.py — настройки приложения из .env
-  - database.py — SQLAlchemy engine/session/Base
-- modules/
-  - market/
-    - models.py
-    - schemas.py
-    - repository.py
-    - service.py
-    - router.py
-    - moex_client.py
-  - watchlist/
-    - models.py
-    - schemas.py
-    - repository.py
-    - service.py
-    - router.py
-  - alerts/
-    - models.py
-    - schemas.py
-    - repository.py
-    - service.py
-    - router.py
-  - notifications/
-    - пока почти не используется, зарезервировано под будущие Telegram/email уведомления
-- shared/
-  - errors.py
-  - pagination.py
-- main.py — FastAPI app, подключение routers, CORS, health endpoints
+  core/
+    config.py
+    database.py
+    logging.py
+  shared/
+    errors.py
+  modules/
+    market/
+    watchlist/
+    alerts/
+    hypotheses/
+```
 
-Правила backend-архитектуры:
-- router.py отвечает только за HTTP endpoints.
-- service.py отвечает за бизнес-логику.
-- repository.py отвечает за запросы к базе данных.
-- schemas.py содержит Pydantic request/response схемы.
-- models.py содержит SQLAlchemy модели.
-- Не класть бизнес-логику напрямую в router.py, кроме совсем маленьких вещей.
-- Не делать огромные рефакторы без отдельного запроса.
-- Все изменения делать маленькими и осознанными.
-- Не делать коммит автоматически.
-- После изменений показать diff или кратко объяснить, какие файлы изменились и почему.
+Architecture principles:
 
-БАЗА ДАННЫХ
+- `router.py` is the HTTP API layer.
+- `service.py` contains business logic.
+- `repository.py` contains database access.
+- `schemas.py` contains Pydantic request/response models.
+- `models.py` contains SQLAlchemy models.
+- external clients contain integration code, for example MOEX ISS access.
 
-PostgreSQL запущен через Docker.
-Docker compose service называется postgres.
-Таблицы уже созданы через Alembic migrations.
+Avoid placing business logic directly in routers unless it is very small and endpoint-specific.
 
-Основные сущности:
+## Current Backend Modules
 
-Market:
-- Ticker
-- TickerLatestPrice
+### Market
 
-Watchlist:
-- WatchlistItem
+Responsible for tickers, latest prices and MOEX candles.
 
-Alerts:
-- Alert
-- AlertEvent
+Important behavior:
 
-MARKET MODULE
+- fetch ticker data from MOEX ISS;
+- create ticker records when needed;
+- update `ticker_latest_prices`;
+- serve Market Chart candles directly from MOEX through:
+  - `GET /api/v1/market/tickers/{secid}/candles`
 
-Market отвечает за тикеры, latest price, MOEX candles и работу с MOEX.
+PostgreSQL stores product state, not market candles. Historical candles are currently requested from MOEX.
 
-MOEX client получает данные из MOEX ISS API.
+### Watchlist
 
-Refresh тикера должен:
-- получить данные из MOEX;
-- создать тикер, если его еще нет;
-- обновить ticker_latest_prices.
+Responsible for the user's tracked tickers.
 
-Market Chart на frontend строится по MOEX candles через endpoint:
-- GET /api/v1/market/tickers/{secid}/candles
+Important endpoints:
 
-PostgreSQL хранит состояние продукта: тикеры, latest price, watchlist, alerts и alert events.
-Рыночные свечи не хранятся в PostgreSQL.
-Удаленная таблица prices больше не является частью актуальной модели данных.
+- `GET /api/v1/watchlist`
+- `POST /api/v1/watchlist/items`
+- `DELETE /api/v1/watchlist/items/{secid}`
+- `POST /api/v1/watchlist/refresh-prices`
 
-Для цен использовать Decimal, не float.
+Batch refresh should continue working when one ticker fails and should return item-level details.
 
-Основные endpoint’ы:
-- GET /api/v1/market/tickers
-- GET /api/v1/market/tickers/{secid}/moex
-- POST /api/v1/market/tickers/{secid}/refresh
-- GET /api/v1/market/tickers/{secid}/price
-- GET /api/v1/market/tickers/{secid}/candles
+### Alerts
 
-WATCHLIST MODULE
+Responsible for price alerts and alert event history.
 
-Watchlist отвечает за список отслеживаемых тикеров.
+Important behavior:
 
-Основные endpoint’ы:
-- GET /api/v1/watchlist
-- POST /api/v1/watchlist/items
-- DELETE /api/v1/watchlist/items/{secid}
-- POST /api/v1/watchlist/refresh-prices
+- alerts can be checked manually or in batch;
+- triggered alerts create `AlertEvent`;
+- alert deletion uses soft delete;
+- alert events should remain as history.
 
-Поведение:
-- GET /api/v1/watchlist возвращает список тикеров в watchlist.
-- POST /api/v1/watchlist/items добавляет тикер в watchlist.
-- Если тикера еще нет в базе, backend должен сходить в MOEX, создать тикер и сохранить latest price.
-- DELETE /api/v1/watchlist/items/{secid} удаляет тикер из watchlist, но не удаляет сам тикер и latest price.
-- POST /api/v1/watchlist/refresh-prices обновляет цены всех тикеров из watchlist.
-- Batch refresh должен продолжать работу, даже если один тикер упал.
-- Ответ batch refresh должен содержать total, updated, failed и подробности по каждому тикеру.
+### Hypotheses
 
-ALERTS MODULE
+Responsible for hypothesis/event analysis.
 
-Alerts отвечает за price alerts.
+Current state:
 
-Основные endpoint’ы:
-- GET /api/v1/alerts
-- POST /api/v1/alerts
-- POST /api/v1/alerts/{alert_id}/check
-- POST /api/v1/alerts/check-active
-- DELETE /api/v1/alerts/{alert_id}
-- GET /api/v1/alerts/events
+- `POST /api/v1/hypotheses/analyze` exists and must not be changed casually;
+- static MVP key rate events exist as a legacy/sample layer;
+- `key_rate_decisions` database table exists for official/imported key rate decisions;
+- `GET /api/v1/hypotheses/key-rate-decisions` reads the DB table and returns an empty list if no data has been imported.
+- `POST /api/v1/hypotheses/key-rate-impact/analyze` runs the Key Rate Impact Analyzer MVP over imported decisions and MOEX candles.
 
-Условия alert:
-- above: current_price >= target_price
-- below: current_price <= target_price
+Do not present sample events as official data.
 
-Поведение:
-- Alert создается для тикера и целевой цены.
-- Если тикера нет в базе, backend может подтянуть его через MOEX.
-- При срабатывании alert:
-  - создается AlertEvent;
-  - alert становится inactive;
-  - заполняется triggered_at.
-- Inactive alert не должен срабатывать повторно.
-- POST /api/v1/alerts/check-active проверяет все активные alerts.
-- Batch check должен продолжать работу, даже если один alert упал.
-- Ответ batch check должен содержать total, checked, triggered, failed и item details.
+## Database State
 
-АРХИТЕКТУРА FRONTEND
+Current product tables include:
 
+- `tickers`
+- `ticker_latest_prices`
+- `watchlist_items`
+- `alerts`
+- `alert_events`
+- `key_rate_decisions`
+- `alembic_version`
+
+The old saved `prices` history table has been removed. Market Chart uses MOEX candles directly.
+
+Use `Decimal` for prices and rates. Avoid floats for financial values.
+
+## Frontend Structure
+
+```text
 frontend/src/
-- main.jsx
-- App.jsx
-- styles.css
-- pages/
-  - MarketPage.jsx
-- shared/api/
-  - client.js
-- features/
-  - watchlist/api.js
-  - market/api.js
-  - alerts/api.js
+  main.jsx
+  App.jsx
+  pages/
+    MarketPage.jsx
+  features/
+    market/
+    watchlist/
+    alerts/
+    hypotheses/
+  shared/
+    api/
+    lib/
+  styles.css
+```
 
-Frontend сейчас находится в MVP-состоянии.
-MarketPage.jsx работает как контейнер страницы.
-UI-секции вынесены в отдельные компоненты: Market Overview, Watchlist, Market Chart, Alerts и Alert Events.
+Current frontend capabilities:
 
-Frontend умеет:
-- показывать Market Overview;
-- показывать watchlist;
-- добавлять тикеры;
-- удалять тикеры;
-- обновлять цену одного тикера;
-- обновлять цены всего watchlist;
-- выбирать тикер из watchlist;
-- показывать Market Chart по MOEX candles;
-- показывать alerts;
-- создавать alerts;
-- проверять один alert;
-- проверять все активные alerts;
-- показывать alert events.
+- Market Overview dashboard section;
+- Watchlist;
+- Market Chart based on MOEX candles;
+- Price Alerts;
+- Alert Events;
+- Hypothesis Lab UI;
+- structured API error parsing.
 
-Frontend должен использовать backend batch endpoints:
-- Refresh all prices должен вызывать один endpoint:
-  POST /api/v1/watchlist/refresh-prices
-- Check all active alerts должен вызывать один endpoint:
-  POST /api/v1/alerts/check-active
+The frontend is a working MVP and may change while the Key Rate Impact Analyzer is stabilized.
 
-Одиночные кнопки могут остаться как есть:
-- Refresh одного тикера вызывает POST /api/v1/market/tickers/{secid}/refresh
-- Check одного alert вызывает POST /api/v1/alerts/{alert_id}/check
+## API and Error Handling
 
-Frontend должен показывать понятные сообщения:
-- сколько тикеров обновлено;
-- сколько ошибок;
-- какие тикеры не обновились, если backend вернул failed items;
-- сколько alert’ов проверено;
-- сколько alert’ов сработало;
-- какие alert’ы упали, если backend вернул failed items.
+Backend API uses FastAPI routers under `/api/v1`.
 
-UI:
-- Используется обычный CSS.
-- Не добавлять Tailwind, MUI, shadcn и другие UI-библиотеки без отдельного запроса.
-- Сохранять текущий темный стиль.
-- Не делать карточки компактнее без отдельного запроса.
-- Визуальный стиль сейчас устраивает.
+Domain/API errors should use the structured format:
 
-КОМАНДЫ
+```json
+{
+  "detail": {
+    "code": "some_error_code",
+    "message": "Human readable message",
+    "details": {}
+  }
+}
+```
 
-Backend:
-cd backend
-python -m uvicorn app.main:app --reload
+FastAPI validation errors (`422`) remain standard.
 
-Frontend:
-cd frontend
-npm run dev
+## Testing and CI
 
-Docker/PostgreSQL:
-docker compose up -d postgres
-docker ps
+Backend tests cover:
 
-Git:
-Не делать коммит автоматически.
-Пользователь сам выполнит:
-git status
-git add .
-git commit -m "message"
+- alert condition logic;
+- batch behavior;
+- MOEX retry/invalid JSON handling;
+- MOEX candles parsing/API contract;
+- soft delete alerts;
+- hypotheses blueprints/report composer/historical validation;
+- key rate events sample layer;
+- key rate decisions repository/API foundation.
 
-ОГРАНИЧЕНИЯ
+GitHub Actions CI runs backend tests and frontend build.
 
-- Не редактировать .env без отдельного запроса.
-- Не добавлять node_modules в Git.
-- Не трогать .venv.
-- Не переписывать весь проект.
-- Не добавлять авторизацию пока.
-- Не добавлять Docker для backend/frontend пока.
-- Не добавлять Telegram notifications пока.
-- Не добавлять background tasks пока.
-- Не делать большие архитектурные изменения без согласования.
-- Если задача неясна, лучше уточнить.
-- Предпочитать маленькие изменения.
-- После изменения объяснять, какие файлы изменены и почему.
+Workflow triggers:
 
-БЛИЖАЙШИЕ ВОЗМОЖНЫЕ ЗАДАЧИ
+- push to `main`;
+- push to `develop`;
+- push to `feature/**`;
+- pull requests to `main` or `develop`;
+- manual `workflow_dispatch`.
 
-1. Улучшить надежность MOEX client:
-   - timeout 15 секунд;
-   - 2 попытки всего;
-   - пауза 0.5 секунды между попытками;
-   - если обе попытки упали, выбрасывать MoexClientError с понятным сообщением.
+## Branch Workflow
 
-2. Улучшить frontend-сообщения для batch operations:
-   - если batch refresh частично упал, показать какие тикеры не обновились;
-   - если batch alert check частично упал, показать какие alerts упали.
+- `main` is the stable branch.
+- `develop` is the working integration branch.
+- `feature/*` branches are used for larger features.
 
-3. Добавить первые backend tests:
-   - тест is_alert_triggered;
-   - тест build_alert_message;
-   - тест batch summary logic.
+## Important Constraints
 
-4. Позже улучшить Market Chart:
-   - добавить более богатые подписи осей;
-   - улучшить tooltip/hover по свечам;
-   - добавить больше аналитических метрик.
+Do not break without a dedicated task:
 
-5. Позже добавить notifications/background tasks.
+- existing backend module structure;
+- existing API contracts;
+- migrations;
+- CI workflow;
+- current dashboard behavior;
+- current frontend layout;
+- tests;
+- `.env`, `.venv`, `node_modules`.
 
-ВАЖНЫЙ СТИЛЬ РАБОТЫ
+Do not add:
 
-Проект пишется поэтапно.
-Не нужно сразу делать идеально.
-Сначала рабочий MVP, потом улучшение архитектуры.
-Если можно сделать маленькое безопасное изменение — делай маленькое.
-Если изменение большое — сначала предложи план и дождись подтверждения.
+- fake official data;
+- web scraping;
+- real CBR/news requests without a separate task;
+- production claims;
+- financial advice wording.
+
+## Current Development Focus
+
+Near-term focus:
+
+- official/imported Historical Key Rate Decisions Dataset;
+- Key Rate Impact Analyzer;
+- transition from a dashboard/watchlist app toward historical event analysis;
+- documentation and repository presentation;
+- better tests around the new analyzer flow.

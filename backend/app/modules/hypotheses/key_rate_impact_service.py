@@ -28,6 +28,7 @@ BEFORE_EVENT_BUFFER_DAYS = 10
 AFTER_EVENT_BUFFER_EXTRA_DAYS = 10
 DAILY_CANDLE_INTERVAL = "1d"
 PERCENT_MULTIPLIER = Decimal("100")
+MIN_EVENTS_FOR_BEST_HORIZON = 3
 
 COMPANY_NAMES = {
     "SBER": "Сбербанк",
@@ -345,6 +346,12 @@ def _build_short_conclusion(
     events_used: int,
     events_total: int,
 ) -> str:
+    if result_type == "insufficient_data" or events_used < MIN_EVENTS_FOR_BEST_HORIZON:
+        return (
+            "Данных недостаточно для устойчивого вывода. Ниже показаны "
+            "отдельные исторические наблюдения."
+        )
+
     if result_type == "positive":
         reaction_text = "исторически чаще была положительной"
     elif result_type == "negative":
@@ -367,7 +374,8 @@ def _build_best_horizon(report: dict[str, Any]) -> dict[str, Any] | None:
     usable_horizons = [
         item
         for item in report.get("horizon_summary", [])
-        if item.get("events_with_data", 0) > 0
+        if item.get("events_with_data", 0) >= MIN_EVENTS_FOR_BEST_HORIZON
+        and item.get("typical_direction") != "insufficient_data"
     ]
 
     if not usable_horizons:
@@ -434,7 +442,7 @@ def _build_confidence(report: dict[str, Any]) -> dict[str, Any]:
 
     if _has_extraordinary_or_disruption_notes(report):
         reasons.append(
-            "В датасете есть события с пометкой market disruption/extraordinary."
+            "В датасете есть нестандартные рыночные события."
         )
 
     if _mixed_or_neutral_horizons_are_common(report):

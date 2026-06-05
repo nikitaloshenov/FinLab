@@ -174,16 +174,46 @@ def test_key_rate_impact_best_horizon_is_null_without_usable_data(
     api_client,
     monkeypatch,
 ):
-    client, _ = api_client
+    client, SessionLocal = api_client
+    _seed_decisions(SessionLocal)
     monkeypatch.setattr(key_rate_impact_service, "MoexClient", FakeMoexClient)
 
     response = client.post(
         "/api/v1/hypotheses/key-rate-impact/analyze",
-        json={"main_ticker": "SBER", "direction": "rate_hold"},
+        json={"main_ticker": "SBER", "direction": "rate_hike", "horizons": [1]},
     )
 
     assert response.status_code == 200
-    assert response.json()["best_horizon"] is None
+
+    data = response.json()
+
+    assert data["decisions_total"] == 2
+    assert data["best_horizon"] is None
+    assert data["summary"]["result_type"] == "insufficient_data"
+
+
+def test_key_rate_impact_insufficient_data_summary_uses_cautious_wording(
+    api_client,
+    monkeypatch,
+):
+    client, SessionLocal = api_client
+    _seed_decisions(SessionLocal)
+    monkeypatch.setattr(key_rate_impact_service, "MoexClient", FakeMoexClient)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/analyze",
+        json={"main_ticker": "SBER", "direction": "rate_hike", "horizons": [1]},
+    )
+
+    assert response.status_code == 200
+
+    summary = response.json()["summary"]
+
+    assert summary["result_type"] == "insufficient_data"
+    assert summary["short_conclusion"] == (
+        "Данных недостаточно для устойчивого вывода. Ниже показаны "
+        "отдельные исторические наблюдения."
+    )
 
 
 def test_key_rate_impact_horizon_summary_contains_readable_labels(

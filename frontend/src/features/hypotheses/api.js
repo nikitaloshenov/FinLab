@@ -7,3 +7,10 @@ export function analyzeHypothesis(payload) {
   });
 }
 
+export function analyzeKeyRateImpact(payload) {
+  return apiRequest("/hypotheses/key-rate-impact/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+

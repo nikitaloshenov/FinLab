@@ -307,7 +307,7 @@ function EventDetails({ events }) {
             <article key={`${event.decision_date}-${event.direction}`}>
               <strong>{event.decision_date}</strong>
               <p>
-                {formatEventDirection(event.direction)}
+                Решение ЦБ: {formatEventDirection(event.direction)}
                 {event.change_bps !== null && event.change_bps !== undefined
                   ? ` / ${event.change_bps} б.п.`
                   : ""}
@@ -316,14 +316,17 @@ function EventDetails({ events }) {
                   : ""}
               </p>
               <p>
-                {event.rate_before ?? "-"} → {event.rate_after ?? "-"}
+                Ставка: {event.rate_before ?? "-"} → {event.rate_after ?? "-"}
                 {event.skip_reason ? ` / ${formatSkipReason(event.skip_reason)}` : ""}
               </p>
               <div>
                 {(event.horizons || []).map((horizon) => (
                   <span key={horizon.horizon_days}>
-                    {horizon.horizon_days}д:{" "}
+                    Реакция акции {horizon.horizon_days}д:{" "}
                     {formatPercent(horizon.stock_return_percent)}
+                    {horizon.skip_reason
+                      ? ` / ${formatSkipReason(horizon.skip_reason)}`
+                      : ""}
                   </span>
                 ))}
               </div>
@@ -437,6 +440,13 @@ function formatEffect(item) {
 
 function formatEffectLabel(value) {
   const labels = {
+    market_noise: "рыночный шум",
+    weak_growth: "слабый рост",
+    moderate_growth: "умеренный рост",
+    strong_growth: "сильный рост",
+    weak_decline: "слабое падение",
+    moderate_decline: "умеренное падение",
+    strong_decline: "сильное падение",
     weak_positive: "слабый рост",
     weak_negative: "слабое падение",
     strong_positive: "заметный рост",
@@ -447,7 +457,7 @@ function formatEffectLabel(value) {
     insufficient_data: "отдельные наблюдения",
   };
 
-  return labels[value] || value;
+  return labels[value] || formatUnknownTechnicalValue(value);
 }
 
 function formatDirectionLabel(value) {
@@ -459,7 +469,7 @@ function formatDirectionLabel(value) {
     insufficient_data: "отдельные наблюдения",
   };
 
-  return labels[value] || value;
+  return labels[value] || formatUnknownTechnicalValue(value);
 }
 
 function buildLimitations(limitations) {
@@ -478,7 +488,29 @@ function buildLimitations(limitations) {
 }
 
 function formatLimitation(value) {
-  const lowerValue = String(value || "").toLowerCase();
+  const normalizedValue = String(value || "").trim();
+  const exactLabels = {
+    "Historical reaction is not a forecast.":
+      "Историческая реакция не является прогнозом.",
+    "Historical reaction does not prove causality.":
+      "Историческая реакция не доказывает причинно-следственную связь.",
+    "Corporate actions and dividends may affect interpretation.":
+      "Дивиденды, корпоративные события и новости могут влиять на результат.",
+    "Some events were skipped because of missing candles.":
+      "Часть событий может быть пропущена из-за отсутствия свечей.",
+    "Some events are marked as extraordinary or market disruption.":
+      "В выборке есть нестандартные рыночные события.",
+    "Small number of events limits confidence.":
+      "Малое количество событий снижает уверенность анализа.",
+    "Benchmark comparison was unavailable or incomplete.":
+      "Сравнение с бенчмарком недоступно или неполное.",
+  };
+
+  if (exactLabels[normalizedValue]) {
+    return exactLabels[normalizedValue];
+  }
+
+  const lowerValue = normalizedValue.toLowerCase();
 
   if (lowerValue.includes("forecast")) {
     return "Историческая реакция не является прогнозом.";
@@ -506,29 +538,47 @@ function formatEventDirection(value) {
     rate_hold: "Ставка без изменений",
   };
 
-  return labels[value] || value || "-";
+  return labels[value] || formatUnknownTechnicalValue(value);
 }
 
 function formatEventStatus(value) {
   const labels = {
     ok: "",
+    skipped: "пропущено",
+    partial: "частично",
     market_disruption: "рыночный шок",
     extraordinary: "нестандартное событие",
   };
 
-  return labels[value] ?? value ?? "";
+  return labels[value] ?? formatUnknownTechnicalValue(value);
 }
 
 function formatSkipReason(value) {
   const labels = {
+    missing_event_candle: "нет свечи события",
+    missing_horizon_candle: "нет свечи на горизонте",
+    empty_candles: "нет свечей по тикеру",
+    invalid_price: "некорректная цена",
     baseline_not_found: "нет базовой свечи",
+    horizon_not_found: "нет свечи на горизонте",
     event_trading_day_not_found: "нет торгового дня события",
     horizon_candle_not_found: "нет свечи горизонта",
     some_horizons_missing: "часть горизонтов недоступна",
     invalid_decision_date: "некорректная дата решения",
+    unknown: "причина не определена",
   };
 
-  return labels[value] || value || "-";
+  return labels[value] || "причина не определена";
+}
+
+function formatUnknownTechnicalValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  return String(value).includes("_")
+    ? String(value).replaceAll("_", " ")
+    : String(value);
 }
 
 function getTone(value) {

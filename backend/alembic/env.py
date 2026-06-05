@@ -11,6 +11,7 @@ from app.core.database import Base
 from app.modules.market import models as market_models
 from app.modules.watchlist import models as watchlist_models
 from app.modules.alerts import models as alerts_models
+from app.modules.hypotheses import models as hypotheses_models
 
 
 config = context.config

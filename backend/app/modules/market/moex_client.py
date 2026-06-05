@@ -129,19 +129,13 @@ class MoexClient:
 
         params = {
             "iss.meta": "off",
+            "iss.only": "candles,candles.cursor",
             "interval": str(moex_interval),
             "from": from_date,
             "till": till_date,
         }
 
-        payload = self._get_json_with_retries(url=url, params=params)
-        candle_rows = self._table_to_dicts(payload.get("candles", {}))
-
-        candles = [
-            candle
-            for candle in (self._normalize_candle_row(row) for row in candle_rows)
-            if candle is not None
-        ]
+        candles = self._fetch_all_candle_pages(url=url, params=params)
 
         logger.info(
             "MOEX candles fetched: secid=%s interval=%s candles=%s",
@@ -151,6 +145,64 @@ class MoexClient:
         )
 
         return candles
+
+    def _fetch_all_candle_pages(
+        self,
+        url: str,
+        params: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        start = 0
+        candles_by_begin: dict[str, dict[str, Any]] = {}
+
+        while True:
+            page_params = {**params, "start": str(start)}
+            payload = self._get_json_with_retries(url=url, params=page_params)
+            candle_rows = self._table_to_dicts(payload.get("candles", {}))
+
+            for candle in (
+                self._normalize_candle_row(row) for row in candle_rows
+            ):
+                if candle is None:
+                    continue
+
+                candles_by_begin[candle["begin"]] = candle
+
+            cursor = self._extract_cursor(payload)
+
+            if cursor is None:
+                break
+
+            page_start = cursor["index"]
+            page_size = cursor["page_size"] or len(candle_rows)
+            total = cursor["total"]
+            next_start = page_start + page_size
+
+            if page_size <= 0 or next_start >= total:
+                break
+
+            start = next_start
+
+        return sorted(candles_by_begin.values(), key=lambda candle: candle["begin"])
+
+    def _extract_cursor(self, payload: dict[str, Any]) -> dict[str, int] | None:
+        cursor_rows = self._table_to_dicts(payload.get("candles.cursor", {}))
+
+        if not cursor_rows:
+            return None
+
+        cursor = cursor_rows[0]
+        index = self._to_int(cursor.get("INDEX"))
+        total = self._to_int(cursor.get("TOTAL"))
+        page_size = self._to_int(cursor.get("PAGESIZE"))
+
+        if index is None or total is None:
+            return None
+
+        return {
+            "index": index,
+            "total": total,
+            "page_size": page_size or 0,
+        }
 
     def _get_json_with_retries(
         self,
@@ -290,4 +342,13 @@ class MoexClient:
         try:
             return Decimal(str(value))
         except (InvalidOperation, ValueError):
+            return None
+
+    def _to_int(self, value: Any) -> int | None:
+        if value is None or value == "":
+            return None
+
+        try:
+            return int(value)
+        except (TypeError, ValueError):
             return None

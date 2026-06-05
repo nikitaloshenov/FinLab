@@ -1,14 +1,14 @@
-import { formatPrice } from "../../shared/lib/formatters.js";
+const PRIMARY_HORIZONS = new Set([1, 3, 10]);
 
 export function HypothesisResultPanel({ result, isLoading }) {
   if (isLoading && !result) {
     return (
       <div className="hypothesisResult">
-        <div className="emptyState">
-          <strong>Анализируем гипотезу</strong>
+        <div className="emptyState hypothesisPlaceholder">
+          <strong>Анализируем исторические решения ЦБ и свечи MOEX...</strong>
           <p>
-            Получаем свечи, проверяем окно события и собираем отчет по выбранным
-            параметрам.
+            Сравниваем похожие решения по ключевой ставке с движением выбранной
+            акции на заданных горизонтах.
           </p>
         </div>
       </div>
@@ -18,173 +18,323 @@ export function HypothesisResultPanel({ result, isLoading }) {
   if (!result) {
     return (
       <div className="hypothesisResult">
-        <div className="emptyState">
-          <strong>Заполните параметры слева и запустите анализ.</strong>
+        <div className="emptyState hypothesisPlaceholder">
+          <strong>
+            Выберите акцию и сценарий ставки, чтобы проверить историческую
+            реакцию.
+          </strong>
           <p>
-            Отчет покажет фундаментальную логику, историческую реакцию цены и
-            факторы, за которыми стоит наблюдать.
+            Результат покажет краткий вывод, уверенность, выраженный горизонт
+            и реакцию по выбранным периодам.
           </p>
         </div>
       </div>
     );
   }
 
-  const { assessment, historical_validation: historicalValidation } = result;
-  const mainResult = historicalValidation?.main_ticker_result;
-  const benchmarkResult = historicalValidation?.benchmark_result;
-  const relativeResult = historicalValidation?.relative_result;
-  const benchmarkTicker = result.hypothesis?.benchmark_ticker;
-
   return (
     <div className="hypothesisResult">
-      <section className="assessmentCard">
-        <div>
-          <span className={`assessmentBadge ${assessment?.overall_result || ""}`}>
-            {formatResultLabel(assessment?.overall_result)}
-          </span>
-          <h3>Уверенность: {formatResultLabel(assessment?.confidence || "low")}</h3>
-          <p>{assessment?.text}</p>
-        </div>
-      </section>
+      <SummaryCard summary={result.summary} />
+      <div className="resultPairGrid">
+        <ConfidenceCard confidence={result.confidence} />
+        <BestHorizonCard bestHorizon={result.best_horizon} />
+      </div>
+      {!result.benchmark_ticker && (
+        <p className="benchmarkInlineNote">
+          Бенчмарк не выбран — показана абсолютная реакция акции.
+        </p>
+      )}
+      <HorizonSummaryTable items={result.horizon_summary || []} />
+      <BenchmarkSummary result={result} />
+      <DataQualityDetails
+        skippedSummary={result.skipped_summary}
+        summary={result.summary}
+      />
+      <Limitations limitations={result.limitations || []} />
+      <EventDetails events={result.event_results || []} />
+    </div>
+  );
+}
 
-      <section className="resultBlock">
-        <div className="resultBlockHeader">
-          <h3>Проверка основного тикера</h3>
-        </div>
-        <div className="resultMetricsGrid">
-          <Metric label="Цена до события" value={formatPrice(mainResult?.price_before)} />
-          <Metric label="Цена события" value={formatPrice(mainResult?.price_at_event)} />
-          <Metric label="Цена после" value={formatPrice(mainResult?.price_after)} />
-          <Metric
-            label="Доходность после"
-            value={formatPercent(mainResult?.return_after_percent)}
-            tone={getTone(mainResult?.return_after_percent)}
-          />
-          <Metric
-            label="Макс. просадка"
-            value={formatPercent(mainResult?.max_drawdown_after_percent)}
-            tone="negative"
-          />
-          <Metric
-            label="Макс. рост"
-            value={formatPercent(mainResult?.max_runup_after_percent)}
-            tone="positive"
-          />
-          <Metric
-            label="Волатильность"
-            value={formatPercent(mainResult?.volatility_after_percent)}
-          />
-        </div>
-      </section>
+function SummaryCard({ summary }) {
+  const title = buildSummaryTitle(summary);
 
-      <section className="resultBlock">
-        <div className="resultBlockHeader">
-          <h3>Сравнение с бенчмарком</h3>
-        </div>
-
-        {benchmarkResult?.status === "ok" && relativeResult ? (
-          <div className="resultMetricsGrid compact">
-            <Metric
-              label="Доходность бенчмарка"
-              value={formatPercent(relativeResult.benchmark_return_after_percent)}
-              tone={getTone(relativeResult.benchmark_return_after_percent)}
-            />
-            <Metric
-              label="Относительная доходность"
-              value={formatPercent(relativeResult.relative_return_after_percent)}
-              tone={getTone(relativeResult.relative_return_after_percent)}
-            />
-            <Metric
-              label="Интерпретация"
-              value={formatResultLabel(relativeResult.interpretation)}
-            />
-          </div>
-        ) : (
-          <div className="emptyState compact">
-            <strong>{getBenchmarkStateTitle({ benchmarkTicker, benchmarkResult })}</strong>
-            <p>{getBenchmarkStateText({ benchmarkTicker, benchmarkResult })}</p>
-          </div>
+  return (
+    <section className="assessmentCard">
+      <span className={`assessmentBadge ${summary?.result_type || ""}`}>
+        {formatResultType(summary?.result_type)}
+      </span>
+      <h3>{title}</h3>
+      <p>{summary?.short_conclusion}</p>
+      <div className="summaryStats">
+        <span>
+          {summary?.events_used || 0} событий проанализировано
+        </span>
+        {(summary?.events_skipped ?? 0) > 0 && (
+          <span>Пропущено: {summary.events_skipped}</span>
         )}
-      </section>
+      </div>
+      <p className="resultHint">
+        Историческая реакция не является прогнозом.
+      </p>
+    </section>
+  );
+}
 
+function ConfidenceCard({ confidence }) {
+  return (
+    <section className="resultBlock compactResultBlock">
+      <div className="resultBlockHeader">
+        <h3>Уверенность анализа</h3>
+      </div>
+      <strong className="insightValue">
+        {confidence?.label || "Не рассчитана"}
+      </strong>
+      <ul className="limitationList">
+        {(confidence?.reasons || []).slice(0, 3).map((reason) => (
+          <li key={reason}>{reason}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function BestHorizonCard({ bestHorizon }) {
+  if (!bestHorizon) {
+    return (
       <section className="resultBlock">
         <div className="resultBlockHeader">
-          <h3>Механизмы влияния</h3>
+          <h3>Выраженный горизонт не найден</h3>
         </div>
-        <div className="mechanismGrid">
-          {(result.blueprint?.mechanisms || []).map((mechanism) => (
-            <article className="mechanismCard" key={mechanism.id}>
-              <div>
-                <strong>{mechanism.name}</strong>
-                <span>
-                  {formatResultLabel(mechanism.direction)} /{" "}
-                  {formatResultLabel(mechanism.importance)}
-                </span>
-              </div>
-              <p>{mechanism.explanation}</p>
-            </article>
-          ))}
-        </div>
+        <p className="resultHint">
+          Для выбранного сценария недостаточно событий с рыночными данными.
+        </p>
       </section>
+    );
+  }
 
-      <section className="resultBlock argumentColumns">
-        <ArgumentList title="Аргументы за" items={result.arguments_for} />
-        <ArgumentList title="Аргументы против" items={result.arguments_against} />
-      </section>
+  return (
+    <section className="resultBlock compactResultBlock">
+      <div className="resultBlockHeader">
+        <h3>Самый выраженный горизонт</h3>
+      </div>
+      <strong className="insightValue">{bestHorizon.horizon_label}</strong>
+      <div className="resultMetricsGrid compact">
+        <Metric
+          label="Средняя реакция"
+          value={formatPercent(bestHorizon.average_return_percent)}
+          tone={getTone(bestHorizon.average_return_percent)}
+        />
+        <Metric
+          label="Медиана"
+          value={formatPercent(bestHorizon.median_return_percent)}
+          tone={getTone(bestHorizon.median_return_percent)}
+        />
+        <Metric label="Событий / покрытие" value={bestHorizon.events_with_data} />
+      </div>
+      <p className="resultHint">
+        {bestHorizon.typical_effect_label || bestHorizon.typical_effect}.
+        {bestHorizon.reason ? ` ${bestHorizon.reason}` : ""}
+      </p>
+    </section>
+  );
+}
 
-      <section className="resultBlock">
-        <div className="resultBlockHeader">
-          <h3>Что отслеживать</h3>
-        </div>
-        <div className="watchFactorList">
-          {(result.watch_factors || []).map((factor) => (
-            <article key={factor.id}>
-              <strong>{factor.name}</strong>
-              <p>{factor.why_it_matters}</p>
-              <div>
-                <span>Позитивный сигнал: {factor.signal_positive}</span>
-                <span>Негативный сигнал: {factor.signal_negative}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+function HorizonSummaryTable({ items }) {
+  const visibleItems = items.filter((item) => PRIMARY_HORIZONS.has(item.horizon_days));
 
-      <section className="resultBlock">
-        <div className="resultBlockHeader">
-          <h3>Ограничения</h3>
+  return (
+    <section className="resultBlock">
+      <div className="resultBlockHeader">
+        <h3>Реакция по горизонтам</h3>
+      </div>
+      {visibleItems.length === 0 ? (
+        <p className="resultHint">Нет данных для таблицы горизонтов.</p>
+      ) : (
+        <div className="tableWrapper compactTable">
+          <table>
+            <thead>
+              <tr>
+                <th>Горизонт</th>
+                <th>Средняя реакция</th>
+                <th>Медиана</th>
+                <th>События</th>
+                <th>Интерпретация</th>
+                <th>Покрытие</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleItems.map((item) => (
+                <tr
+                  className={item.events_with_data < 3 ? "mutedDataRow" : undefined}
+                  key={item.horizon_days}
+                >
+                  <td>{item.horizon_label || `${item.horizon_days} дн.`}</td>
+                  <td className={getTone(item.average_return_percent)}>
+                    {formatPercent(item.average_return_percent)}
+                  </td>
+                  <td className={getTone(item.median_return_percent)}>
+                    {formatPercent(item.median_return_percent)}
+                  </td>
+                  <td>
+                    {formatEventCounts(item)}
+                  </td>
+                  <td>
+                    {formatEffect(item)}
+                  </td>
+                  <td>
+                    {item.events_with_data} / {item.events_total}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <ul className="limitationList">
-          {(result.limitations || []).map((limitation) => (
+      )}
+    </section>
+  );
+}
+
+function BenchmarkSummary({ result }) {
+  const benchmarkItems = result.benchmark_summary || [];
+
+  if (!result.benchmark_ticker) {
+    return null;
+  }
+
+  return (
+    <section className="resultBlock secondaryResultBlock">
+      <div className="resultBlockHeader">
+        <h3>Сравнение с бенчмарком</h3>
+      </div>
+      {result.benchmark_ticker && benchmarkItems.length > 0 ? (
+        <div className="tableWrapper compactTable">
+          <table>
+            <thead>
+              <tr>
+                <th>Горизонт</th>
+                <th>Бенчмарк</th>
+                <th>Относительно акции</th>
+                <th>Лучше / хуже</th>
+              </tr>
+            </thead>
+            <tbody>
+              {benchmarkItems.map((item) => (
+                <tr key={item.horizon_days}>
+                  <td>{item.horizon_days} дн.</td>
+                  <td className={getTone(item.average_benchmark_return_percent)}>
+                    {formatPercent(item.average_benchmark_return_percent)}
+                  </td>
+                  <td className={getTone(item.average_relative_return_percent)}>
+                    {formatPercent(item.average_relative_return_percent)}
+                    <span className="tableSubtext">
+                      медиана {formatPercent(item.median_relative_return_percent)}
+                    </span>
+                  </td>
+                  <td>
+                    {item.outperformed_count} / {item.underperformed_count}
+                    <span className="tableSubtext">
+                      лучше: {formatPercent(item.outperformed_share_percent)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="resultHint">Сравнение с бенчмарком недоступно.</p>
+      )}
+    </section>
+  );
+}
+
+function DataQualityDetails({ skippedSummary, summary }) {
+  const reasons = skippedSummary?.reasons || [];
+  const analyzed = summary?.events_used || 0;
+  const total = summary?.events_total || 0;
+  const skipped = skippedSummary?.skipped_total ?? summary?.events_skipped ?? 0;
+
+  return (
+    <section className="resultBlock secondaryResultBlock">
+      <details className="eventDetails">
+        <summary>Качество данных</summary>
+        <div className="detailsBody">
+          <p className="resultHint">
+            Проанализировано: {analyzed} из {total} событий. Пропущено: {skipped}.
+          </p>
+          {reasons.length > 0 && (
+            <ul className="limitationList">
+              {reasons.map((item) => (
+                <li key={item.reason}>
+                  {formatSkipReason(item.reason)}: {item.count}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function Limitations({ limitations }) {
+  return (
+    <section className="resultBlock secondaryResultBlock">
+      <details className="eventDetails">
+        <summary>Ограничения анализа</summary>
+        <ul className="limitationList detailsList">
+          {buildLimitations(limitations).map((limitation) => (
             <li key={limitation}>{limitation}</li>
           ))}
         </ul>
-      </section>
+      </details>
+    </section>
+  );
+}
 
-      <section className="resultBlock">
-        <div className="resultBlockHeader">
-          <h3>Идеи для наблюдения</h3>
-        </div>
-        <p className="resultHint">
-          Alert'ы не создаются автоматически. Это ориентиры, которые можно позже
-          перенести в правила уведомлений.
-        </p>
-        <div className="suggestedAlertList">
-          {(result.suggested_alerts || []).map((alert, index) => (
-            <article key={`${alert.id || alert.secid}-${index}`}>
-              <strong>{alert.title || alert.secid || "Идея для наблюдения"}</strong>
-              <p>{alert.description || alert.reason}</p>
-              <span>
-                {formatResultLabel(alert.condition || alert.condition_hint || "watch")} /{" "}
-                {alert.target_price
-                  ? formatPrice(alert.target_price)
-                  : "уровень не рассчитан"}
-              </span>
+function EventDetails({ events }) {
+  if (events.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="resultBlock secondaryResultBlock">
+      <details className="eventDetails">
+        <summary>Исторические события</summary>
+        <div className="eventDetailsList">
+          {events.map((event) => (
+            <article key={`${event.decision_date}-${event.direction}`}>
+              <strong>{event.decision_date}</strong>
+              <p>
+                Решение ЦБ: {formatEventDirection(event.direction)}
+                {event.change_bps !== null && event.change_bps !== undefined
+                  ? ` / ${event.change_bps} б.п.`
+                  : ""}
+                {formatEventStatus(event.status)
+                  ? ` / ${formatEventStatus(event.status)}`
+                  : ""}
+              </p>
+              <p>
+                Ставка: {event.rate_before ?? "-"} → {event.rate_after ?? "-"}
+                {event.skip_reason ? ` / ${formatSkipReason(event.skip_reason)}` : ""}
+              </p>
+              <div>
+                {(event.horizons || []).map((horizon) => (
+                  <span key={horizon.horizon_days}>
+                    Реакция акции {horizon.horizon_days}д:{" "}
+                    {formatPercent(horizon.stock_return_percent)}
+                    {horizon.skip_reason
+                      ? ` / ${formatSkipReason(horizon.skip_reason)}`
+                      : ""}
+                  </span>
+                ))}
+              </div>
             </article>
           ))}
         </div>
-      </section>
-    </div>
+      </details>
+    </section>
   );
 }
 
@@ -194,49 +344,34 @@ function Metric({ label, value, tone }) {
   return (
     <div className={className}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>{value ?? "-"}</strong>
     </div>
   );
 }
 
-function ArgumentList({ title, items = [] }) {
+function buildSummaryTitle(summary) {
+  if (!summary) {
+    return "Историческая реакция";
+  }
+
+  return `${summary.company_name || summary.main_ticker} после ${formatDirectionForTitle(
+    summary.direction,
+    summary.direction_label,
+  )}`;
+}
+
+function formatDirectionForTitle(direction, fallbackLabel) {
+  const labels = {
+    rate_cut: "снижения ключевой ставки",
+    rate_hike: "повышения ключевой ставки",
+    rate_hold: "сохранения ключевой ставки",
+  };
+
   return (
-    <div>
-      <h3>{title}</h3>
-      <div className="argumentList">
-        {items.map((item) => (
-          <article key={`${item.type}-${item.message}`}>
-            <span>{formatResultLabel(item.type)}</span>
-            <p>{item.message}</p>
-          </article>
-        ))}
-      </div>
-    </div>
+    labels[direction] ||
+    fallbackLabel?.toLocaleLowerCase("ru-RU") ||
+    "решения по ключевой ставке"
   );
-}
-
-function getBenchmarkStateTitle({ benchmarkTicker, benchmarkResult }) {
-  if (!benchmarkTicker) {
-    return "Сравнение с бенчмарком отключено.";
-  }
-
-  if (benchmarkResult?.status === "failed") {
-    return "Сравнение с бенчмарком недоступно.";
-  }
-
-  return "Нет данных для сравнения.";
-}
-
-function getBenchmarkStateText({ benchmarkTicker, benchmarkResult }) {
-  if (!benchmarkTicker) {
-    return "Итог основан только на основном тикере.";
-  }
-
-  if (benchmarkResult?.status === "failed") {
-    return "Итог основан только на основном тикере.";
-  }
-
-  return "Когда бенчмарк вернет свечи, здесь появится относительная доходность.";
 }
 
 function formatPercent(value) {
@@ -258,38 +393,192 @@ function formatPercent(value) {
   }).format(numberValue)}%`;
 }
 
-function formatResultLabel(value) {
-  if (!value) {
+function formatResultType(value) {
+  const labels = {
+    positive: "Чаще рост",
+    negative: "Чаще снижение",
+    neutral: "Нейтрально",
+    mixed: "Смешанная реакция",
+    insufficient_data: "Недостаточно данных",
+  };
+
+  return labels[value] || "исторический анализ";
+}
+
+function formatEventCounts(item) {
+  return `${item.positive_count} рост / ${item.negative_count} падение / ${item.neutral_count} нейтр.`;
+}
+
+function formatEffect(item) {
+  if (
+    item.events_with_data < 3 ||
+    item.typical_effect === "insufficient_data" ||
+    item.typical_direction === "insufficient_data"
+  ) {
+    return "отдельные наблюдения";
+  }
+
+  const effect = formatEffectLabel(item.typical_effect_label || item.typical_effect);
+  const direction = formatDirectionLabel(
+    item.typical_direction_label || item.typical_direction,
+  );
+
+  if (!effect && !direction) {
     return "-";
   }
 
+  if (!effect || effect === direction) {
+    return direction || effect;
+  }
+
+  if (!direction || direction === "нейтрально" || direction === "neutral") {
+    return effect;
+  }
+
+  return `${effect}, ${direction}`;
+}
+
+function formatEffectLabel(value) {
   const labels = {
-    supports: "Поддерживает гипотезу",
-    mixed_support: "Смешанный результат",
-    contradicts: "Противоречит гипотезе",
-    insufficient_data: "Недостаточно данных",
-    outperformed: "Лучше бенчмарка",
-    underperformed: "Хуже бенчмарка",
-    in_line: "В рамках бенчмарка",
-    ok: "Ок",
-    failed: "Ошибка",
-    low: "низкая",
-    medium: "средняя",
-    high: "высокая",
-    positive: "позитивный",
-    negative: "негативный",
-    mixed: "смешанный",
-    neutral: "нейтральный",
-    fundamental_logic: "фундаментальная логика",
-    market_context: "рыночный контекст",
-    risk: "риск",
-    historical_validation: "историческая проверка",
-    above: "выше",
-    below: "ниже",
-    watch: "наблюдение",
+    market_noise: "рыночный шум",
+    weak_growth: "слабый рост",
+    moderate_growth: "умеренный рост",
+    strong_growth: "сильный рост",
+    weak_decline: "слабое падение",
+    moderate_decline: "умеренное падение",
+    strong_decline: "сильное падение",
+    weak_positive: "слабый рост",
+    weak_negative: "слабое падение",
+    strong_positive: "заметный рост",
+    strong_negative: "заметное падение",
+    mixed: "смешанно",
+    neutral: "шум",
+    noise: "шум",
+    insufficient_data: "отдельные наблюдения",
   };
 
-  return labels[value] || value.replaceAll("_", " ");
+  return labels[value] || formatUnknownTechnicalValue(value);
+}
+
+function formatDirectionLabel(value) {
+  const labels = {
+    positive: "рост",
+    negative: "падение",
+    neutral: "нейтр.",
+    mixed: "смешанно",
+    insufficient_data: "отдельные наблюдения",
+  };
+
+  return labels[value] || formatUnknownTechnicalValue(value);
+}
+
+function buildLimitations(limitations) {
+  const defaults = [
+    "Историческая реакция не является прогнозом.",
+    "Корреляция не доказывает причинно-следственную связь.",
+    "Дивиденды, корпоративные события и новости могут влиять на результат.",
+    "Часть событий может быть пропущена из-за отсутствия рыночных данных.",
+  ];
+
+  if (!limitations?.length) {
+    return defaults;
+  }
+
+  return [...new Set([...defaults, ...limitations.map(formatLimitation)])].slice(0, 4);
+}
+
+function formatLimitation(value) {
+  const normalizedValue = String(value || "").trim();
+  const exactLabels = {
+    "Historical reaction is not a forecast.":
+      "Историческая реакция не является прогнозом.",
+    "Historical reaction does not prove causality.":
+      "Историческая реакция не доказывает причинно-следственную связь.",
+    "Corporate actions and dividends may affect interpretation.":
+      "Дивиденды, корпоративные события и новости могут влиять на результат.",
+    "Some events were skipped because of missing candles.":
+      "Часть событий может быть пропущена из-за отсутствия свечей.",
+    "Some events are marked as extraordinary or market disruption.":
+      "В выборке есть нестандартные рыночные события.",
+    "Small number of events limits confidence.":
+      "Малое количество событий снижает уверенность анализа.",
+    "Benchmark comparison was unavailable or incomplete.":
+      "Сравнение с бенчмарком недоступно или неполное.",
+  };
+
+  if (exactLabels[normalizedValue]) {
+    return exactLabels[normalizedValue];
+  }
+
+  const lowerValue = normalizedValue.toLowerCase();
+
+  if (lowerValue.includes("forecast")) {
+    return "Историческая реакция не является прогнозом.";
+  }
+
+  if (lowerValue.includes("causality") || lowerValue.includes("correlation")) {
+    return "Корреляция не доказывает причинно-следственную связь.";
+  }
+
+  if (lowerValue.includes("corporate")) {
+    return "Дивиденды, корпоративные события и новости могут влиять на результат.";
+  }
+
+  if (lowerValue.includes("missing") || lowerValue.includes("candle")) {
+    return "Часть событий может быть пропущена из-за отсутствия рыночных данных.";
+  }
+
+  return value;
+}
+
+function formatEventDirection(value) {
+  const labels = {
+    rate_cut: "Снижение ставки",
+    rate_hike: "Повышение ставки",
+    rate_hold: "Ставка без изменений",
+  };
+
+  return labels[value] || formatUnknownTechnicalValue(value);
+}
+
+function formatEventStatus(value) {
+  const labels = {
+    ok: "",
+    skipped: "пропущено",
+    partial: "частично",
+    market_disruption: "рыночный шок",
+    extraordinary: "нестандартное событие",
+  };
+
+  return labels[value] ?? formatUnknownTechnicalValue(value);
+}
+
+function formatSkipReason(value) {
+  const labels = {
+    missing_event_candle: "нет свечи события",
+    missing_horizon_candle: "нет свечи на горизонте",
+    empty_candles: "нет свечей по тикеру",
+    invalid_price: "некорректная цена",
+    baseline_not_found: "нет базовой свечи",
+    horizon_not_found: "нет свечи на горизонте",
+    event_trading_day_not_found: "нет торгового дня события",
+    horizon_candle_not_found: "нет свечи горизонта",
+    some_horizons_missing: "часть горизонтов недоступна",
+    invalid_decision_date: "некорректная дата решения",
+    unknown: "причина не определена",
+  };
+
+  return labels[value] || "причина не определена";
+}
+
+function formatUnknownTechnicalValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  return String(value).includes("_")
+    ? String(value).replaceAll("_", " ")
+    : String(value);
 }
 
 function getTone(value) {

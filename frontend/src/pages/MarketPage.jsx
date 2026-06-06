@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AlertEventsSection } from "../features/alerts/AlertEventsSection.jsx";
 import { AlertsSection } from "../features/alerts/AlertsSection.jsx";
@@ -52,6 +52,7 @@ export function MarketPage() {
 
   const [refreshingTickers, setRefreshingTickers] = useState([]);
   const [checkingAlerts, setCheckingAlerts] = useState([]);
+  const quickAddInFlightRef = useRef("");
 
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
@@ -181,6 +182,11 @@ export function MarketPage() {
 
   async function handleQuickAddTicker(secid) {
     const normalizedTicker = secid.trim().toUpperCase();
+
+    if (quickAddInFlightRef.current) {
+      return;
+    }
+
     const existingItem = watchlist.find((item) => item.secid === normalizedTicker);
 
     if (existingItem) {
@@ -189,6 +195,7 @@ export function MarketPage() {
     }
 
     try {
+      quickAddInFlightRef.current = normalizedTicker;
       setIsActionLoading(true);
       setErrorMessage("");
       setInfoMessage("");
@@ -210,6 +217,7 @@ export function MarketPage() {
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
+      quickAddInFlightRef.current = "";
       setIsActionLoading(false);
     }
   }

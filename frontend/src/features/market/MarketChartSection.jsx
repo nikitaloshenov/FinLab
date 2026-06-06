@@ -21,7 +21,7 @@ export function MarketChartSection({
   onReload,
 }) {
   const candleItems = Array.isArray(candles) ? candles : [];
-  const latestCandles = candleItems.slice(-6).reverse();
+  const latestCandles = candleItems.slice(-8).reverse();
   const stats = candleItems.length > 0 ? getCandleStats(candleItems) : null;
 
   return (

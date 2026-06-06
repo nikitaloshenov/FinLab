@@ -92,7 +92,11 @@ export function MarketUniverseQuickAdd({
                   className={isAdded ? "universeAddedState" : "universeAddButton"}
                   type="button"
                   disabled={isDisabled || isAdded}
-                  onClick={() => onAddTicker(item.secid)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onAddTicker(item.secid);
+                  }}
                 >
                   {isAdded ? "Added" : "Add"}
                 </button>

@@ -81,7 +81,7 @@ export function WatchlistSection({
       )}
 
       {!isLoading && watchlist.length > 0 && (
-        <div className="tableWrapper">
+        <div className="tableWrapper watchlistListWrapper">
           <table>
             <thead>
               <tr>

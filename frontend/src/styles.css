@@ -616,7 +616,31 @@ td {
 }
 
 .watchlistCard .tableWrapper {
-  overflow-x: visible;
+  overflow-x: hidden;
+}
+
+.watchlistCard .watchlistListWrapper {
+  max-height: 480px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+  scrollbar-width: thin;
+}
+
+.watchlistCard .watchlistListWrapper::-webkit-scrollbar,
+.universeList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.watchlistCard .watchlistListWrapper::-webkit-scrollbar-thumb,
+.universeList::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.34);
+}
+
+.watchlistCard .watchlistListWrapper::-webkit-scrollbar-track,
+.universeList::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .watchlistCard table {
@@ -637,12 +661,17 @@ td {
 
 .watchlistCard td {
   white-space: normal;
+  vertical-align: middle;
 }
 
 .watchlistCard td:first-child,
 .watchlistCard td:nth-child(3),
 .watchlistCard td:nth-child(4) {
   white-space: nowrap;
+}
+
+.watchlistCard td:nth-child(2) {
+  min-width: 0;
 }
 
 .universePanel {
@@ -692,8 +721,11 @@ td {
   display: grid;
   gap: 8px;
   max-height: 260px;
+  overflow-x: hidden;
   overflow-y: auto;
   padding-right: 4px;
+  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+  scrollbar-width: thin;
 }
 
 .universeItem {

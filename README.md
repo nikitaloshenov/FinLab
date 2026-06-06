@@ -168,6 +168,24 @@ On backend startup Docker Compose waits for PostgreSQL, runs Alembic migrations 
 
 This setup is intended for local development/demo, not production deployment.
 
+### Docker Data Persistence
+
+PostgreSQL data is stored in the named Docker volume `finlab_postgres_data`.
+
+```powershell
+docker compose down
+```
+
+Stops containers but keeps the database volume. Watchlist items, alerts and imported key rate decisions remain available on the next start.
+
+```powershell
+docker compose down -v
+```
+
+Stops containers and removes Docker volumes. Treat this as a local database reset: watchlist items and alerts will be empty after the next start. The backend will run migrations and import the curated key rate decisions dataset again when it starts.
+
+If the watchlist is empty after restarting Docker, check whether `docker compose down -v` was used. If it was, add tickers again through Market Universe.
+
 ## Local Setup
 
 Create a backend env file from the root template:

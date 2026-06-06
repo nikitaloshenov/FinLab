@@ -445,7 +445,7 @@ button:disabled {
 
 .alertForm {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 150px minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) 140px minmax(160px, 0.8fr) auto;
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -836,6 +836,70 @@ td {
   border-color: var(--border-strong);
   background: var(--surface-soft);
   color: var(--muted);
+}
+
+.statusBadge.triggered {
+  border-color: #f1d18a;
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.alertsTableWrapper {
+  overflow-x: hidden;
+}
+
+.alertsCard table {
+  table-layout: fixed;
+}
+
+.alertsCard th,
+.alertsCard td {
+  padding: 11px 10px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.alertsCard th:nth-child(1) {
+  width: 64px;
+}
+
+.alertsCard th:nth-child(2) {
+  width: 86px;
+}
+
+.alertsCard th:nth-child(3) {
+  width: 92px;
+}
+
+.alertsCard th:nth-child(4) {
+  width: 112px;
+}
+
+.alertsCard th:nth-child(5) {
+  width: 112px;
+}
+
+.alertsCard th:nth-child(6) {
+  width: 128px;
+}
+
+.alertsCard th:nth-child(7) {
+  width: 156px;
+}
+
+.alertsCard td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alertsCard .rowActions {
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.alertsCard .rowActions button {
+  min-width: 68px;
+  padding-inline: 9px;
 }
 
 .pageMessage {
@@ -1862,6 +1926,14 @@ td {
 
   .compactTable {
     overflow-x: auto;
+  }
+
+  .alertsTableWrapper {
+    overflow-x: auto;
+  }
+
+  .alertsTableWrapper table {
+    min-width: 750px;
   }
 
   .siteFooter {

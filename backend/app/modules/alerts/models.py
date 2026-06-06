@@ -21,6 +21,13 @@ class Alert(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        default="legacy-demo-session",
+        index=True,
+        nullable=False,
+    )
+
     ticker_id: Mapped[int] = mapped_column(
         ForeignKey("tickers.id", ondelete="CASCADE"),
         index=True,
@@ -79,6 +86,13 @@ class AlertEvent(Base):
     __tablename__ = "alert_events"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        default="legacy-demo-session",
+        index=True,
+        nullable=False,
+    )
 
     alert_id: Mapped[int] = mapped_column(
         ForeignKey("alerts.id", ondelete="CASCADE"),

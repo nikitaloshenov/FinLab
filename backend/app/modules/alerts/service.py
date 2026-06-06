@@ -36,12 +36,12 @@ class AlertLatestPriceNotFoundError(Exception):
     pass
 
 
-def list_alerts(db: Session) -> list[dict[str, Any]]:
-    return get_alerts(db)
+def list_alerts(db: Session, session_id: str) -> list[dict[str, Any]]:
+    return get_alerts(db, session_id=session_id)
 
 
-def list_alert_events(db: Session) -> list[dict[str, Any]]:
-    return get_alert_events(db)
+def list_alert_events(db: Session, session_id: str) -> list[dict[str, Any]]:
+    return get_alert_events(db, session_id=session_id)
 
 
 def create_price_alert(
@@ -49,6 +49,7 @@ def create_price_alert(
     secid: str,
     condition: str,
     target_price: Decimal,
+    session_id: str,
 ) -> dict[str, Any]:
     normalized_secid = secid.upper().strip()
 
@@ -79,11 +80,12 @@ def create_price_alert(
         ticker=ticker,
         condition=condition,
         target_price=target_price,
+        session_id=session_id,
     )
 
     db.commit()
 
-    created_alert = get_alert_by_id(db, alert.id)
+    created_alert = get_alert_by_id(db, alert.id, session_id=session_id)
 
     if created_alert is None:
         logger.warning(
@@ -106,8 +108,9 @@ def create_price_alert(
 def remove_price_alert(
     db: Session,
     alert_id: int,
+    session_id: str,
 ) -> dict[str, Any]:
-    alert = get_alert_by_id(db, alert_id)
+    alert = get_alert_by_id(db, alert_id, session_id=session_id)
 
     if alert is None:
         raise AlertNotFoundError(
@@ -130,8 +133,9 @@ def remove_price_alert(
 def disable_price_alert(
     db: Session,
     alert_id: int,
+    session_id: str,
 ) -> dict[str, Any]:
-    alert = get_alert_by_id(db, alert_id)
+    alert = get_alert_by_id(db, alert_id, session_id=session_id)
 
     if alert is None:
         raise AlertNotFoundError(
@@ -154,10 +158,11 @@ def disable_price_alert(
 def check_price_alert(
     db: Session,
     alert_id: int,
+    session_id: str,
 ) -> dict[str, Any]:
     logger.info("Checking price alert: alert_id=%s", alert_id)
 
-    alert = get_alert_by_id(db, alert_id)
+    alert = get_alert_by_id(db, alert_id, session_id=session_id)
 
     if alert is None:
         logger.warning(
@@ -260,8 +265,8 @@ def check_price_alert(
     }
 
 
-def check_active_price_alerts(db: Session) -> dict[str, Any]:
-    active_alerts = get_active_alerts(db)
+def check_active_price_alerts(db: Session, session_id: str) -> dict[str, Any]:
+    active_alerts = get_active_alerts(db, session_id=session_id)
     active_alert_ids = [alert.id for alert in active_alerts]
 
     logger.info("Checking active alerts: total=%s", len(active_alert_ids))
@@ -276,6 +281,7 @@ def check_active_price_alerts(db: Session) -> dict[str, Any]:
             check_result = check_price_alert(
                 db=db,
                 alert_id=alert_id,
+                session_id=session_id,
             )
 
             checked_count += 1

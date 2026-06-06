@@ -1,3 +1,5 @@
+import { getDemoSessionId } from "../session.js";
+
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1"
 ).replace(/\/$/, "");
@@ -10,6 +12,10 @@ export class ApiError extends Error {
     this.code = code;
     this.details = details || {};
   }
+}
+
+export function isNetworkApiError(error) {
+  return error instanceof ApiError && (error.status === 0 || error.code === "network_error");
 }
 
 function parseErrorPayload(payload) {
@@ -86,13 +92,23 @@ async function parseErrorResponse(response) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    ...options,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-FinLab-Session-Id": getDemoSessionId(),
+        ...options.headers,
+      },
+      ...options,
+    });
+  } catch {
+    throw new ApiError("Network request failed", {
+      status: 0,
+      code: "network_error",
+    });
+  }
 
   if (!response.ok) {
     const { message, code, details } = await parseErrorResponse(response);

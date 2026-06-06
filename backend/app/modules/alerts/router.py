@@ -29,6 +29,7 @@ from app.modules.market.moex_client import (
 )
 from app.modules.market.service import MarketPriceUnavailableError
 from app.shared.errors import raise_api_error
+from app.shared.session import get_demo_session_id
 
 
 router = APIRouter(
@@ -38,14 +39,18 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[AlertRead])
-def get_alerts_list(db: Session = Depends(get_db)):
-    return list_alerts(db)
+def get_alerts_list(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
+):
+    return list_alerts(db, session_id=session_id)
 
 
 @router.post("", response_model=AlertRead)
 def create_alert(
     alert_data: AlertCreate,
     db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
 ):
     try:
         return create_price_alert(
@@ -53,6 +58,7 @@ def create_alert(
             secid=alert_data.secid,
             condition=alert_data.condition,
             target_price=alert_data.target_price,
+            session_id=session_id,
         )
     except MoexTickerNotFoundError as error:
         raise_api_error(
@@ -81,24 +87,32 @@ def create_alert(
 
 
 @router.get("/events", response_model=list[AlertEventRead])
-def get_alert_events_list(db: Session = Depends(get_db)):
-    return list_alert_events(db)
+def get_alert_events_list(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
+):
+    return list_alert_events(db, session_id=session_id)
 
 
 @router.post("/check-active", response_model=AlertBatchCheckResult)
-def check_active_alerts(db: Session = Depends(get_db)):
-    return check_active_price_alerts(db)
+def check_active_alerts(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
+):
+    return check_active_price_alerts(db, session_id=session_id)
 
 
 @router.post("/{alert_id}/check", response_model=AlertCheckResult)
 def check_alert(
     alert_id: int,
     db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
 ):
     try:
         return check_price_alert(
             db=db,
             alert_id=alert_id,
+            session_id=session_id,
         )
     except AlertNotFoundError as error:
         raise_api_error(
@@ -118,11 +132,13 @@ def check_alert(
 def disable_alert(
     alert_id: int,
     db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
 ):
     try:
         return disable_price_alert(
             db=db,
             alert_id=alert_id,
+            session_id=session_id,
         )
     except AlertNotFoundError as error:
         raise_api_error(
@@ -136,11 +152,13 @@ def disable_alert(
 def delete_alert(
     alert_id: int,
     db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
 ):
     try:
         return remove_price_alert(
             db=db,
             alert_id=alert_id,
+            session_id=session_id,
         )
     except AlertNotFoundError as error:
         raise_api_error(

@@ -1,70 +1,80 @@
 # FinLab
 
-FinLab is a production-like fullstack fintech pet project for monitoring MOEX securities, managing watchlists and price alerts, and evolving into a hypothesis-driven market analysis tool based on historical data.
+FinLab — backend-oriented fullstack fintech-проект для анализа MOEX-тикеров, списка наблюдения, ценовых алертов и проверки рыночных гипотез на исторических данных.
 
-The project started as a Market Watchlist & Alerts dashboard and now includes a Key Rate Impact Analyzer MVP: a tool for studying how selected stocks historically reacted to similar key rate decisions.
+- Live demo: https://jirniydizainer.ru
+- Swagger API: https://jirniydizainer.ru/docs
+- GitHub: https://github.com/nikitaloshenov/FinLab
 
-## Project Status
+## Коротко
 
-- Active development.
-- Backend and frontend MVP are working.
-- Not production-ready yet.
-- Not financial advice and not an investment recommendation.
-- Screenshots will be added after UI stabilization.
+FinLab — production-like fullstack fintech pet-project с основным фокусом на backend, данные, API, PostgreSQL, миграции, аналитическую логику, Docker и CI.
 
-## Why This Project Exists
+Проект позволяет работать с MOEX-тикерами, вести список наблюдения, обновлять рыночные данные, создавать ценовые алерты и проверять гипотезы о реакции акций на решения ЦБ по ключевой ставке. Frontend здесь выступает как демонстрационный web-интерфейс для backend-фичей.
 
-FinLab is built to show more than a simple CRUD dashboard. The goal is to combine market monitoring with historical hypothesis validation:
+FinLab не предсказывает будущее, не дает инвестиционных рекомендаций и не является production trading system.
 
-- monitor MOEX securities;
-- keep a personal watchlist;
-- refresh latest prices;
-- track price alerts;
-- inspect market candles;
-- analyze historical stock reactions to market or macro events.
+## Главные возможности
 
-## Current Features
+- список наблюдения MOEX-тикеров;
+- загрузка и обновление рыночных данных через MOEX ISS API;
+- свечной график по MOEX candles;
+- таблица последних свечей;
+- ценовые алерты;
+- история срабатывания алертов;
+- anonymous demo sessions без регистрации;
+- Key Rate Impact Analyzer;
+- сравнение реакции акции с benchmark;
+- PostgreSQL persistence;
+- Alembic migrations;
+- CSV importer для исторических решений по ключевой ставке;
+- Docker Compose запуск;
+- Swagger API;
+- backend tests и GitHub Actions CI.
 
-- MOEX ISS market data integration.
-- Watchlist management.
-- Latest price refresh for one ticker or the whole watchlist.
-- Market Chart based on MOEX candles.
-- Price alerts.
-- Alert events/history.
-- Hypothesis Lab foundation.
-- Key Rate Impact Analyzer MVP.
-- Curated historical key rate decisions dataset and CSV importer.
-- Key rate decisions database table.
-- FastAPI backend API.
-- PostgreSQL persistence.
-- Alembic migrations.
-- React/Vite frontend.
-- Backend unit and API integration tests.
-- GitHub Actions CI.
-- Branch workflow: `main`, `develop`, `feature/*`.
+## Key Rate Impact Analyzer
 
-## Main Development Direction
+Главная аналитическая фича проекта — Key Rate Impact Analyzer.
 
-The current product direction is the Key Rate Impact Analyzer.
+Он отвечает на вопрос:
 
-Current MVP question:
+> Как выбранная акция исторически реагировала на похожие решения ЦБ по ключевой ставке?
 
-> How did a selected stock historically react to similar key rate decisions?
+Пользователь выбирает:
 
-Current MVP analysis flow:
+- тикер акции;
+- сценарий ставки: снижение, повышение или сохранение;
+- горизонты анализа: 1, 3 и 10 торговых дней;
+- optional benchmark.
 
-- choose one stock;
-- choose a key rate scenario: rate cut, rate hike or rate hold;
-- analyze similar historical decisions;
-- compare horizons: 1, 3 and 10 trading days;
-- optionally compare with a benchmark;
-- show a human-readable conclusion and limitations.
+После этого backend:
 
-The analyzer uses imported curated key rate decisions and MOEX daily candles. For each decision, it uses the first trading candle on or after `decision_date` as the event candle, then compares the event close with closes after the selected trading-day horizons. Missing candles are skipped, not treated as zero returns.
+- берет исторические решения ЦБ из таблицы `key_rate_decisions`;
+- загружает дневные свечи MOEX;
+- для каждого решения ищет первую торговую свечу с датой `>= decision_date`;
+- берет `close` этой свечи как event price;
+- считает доходность через 1/3/10 торговых дней;
+- сравнивает результат с benchmark, если он выбран;
+- возвращает summary, best horizon, confidence, skipped summary, horizon summary и event results.
 
-This is historical analysis, not a forecast and not financial advice.
+Если свеча события или свеча горизонта отсутствует, событие или горизонт пропускается. Отсутствующие данные не заменяются нулем.
 
-## Tech Stack
+Это historical event-study, а не прогноз цены и не инвестиционная рекомендация.
+
+## Anonymous Demo Sessions
+
+В проекте нет регистрации и полноценной авторизации. Для demo-доступа используется anonymous browser session.
+
+Как это работает:
+
+- при первом заходе frontend создает session id;
+- session id хранится в `localStorage`;
+- frontend отправляет его в backend через заголовок `X-FinLab-Session-Id`;
+- watchlist и alerts изолированы между разными браузерами/сессиями;
+- если очистить `localStorage`, demo session будет потеряна;
+- это не замена полноценной auth-системы, а легкий механизм для публичного demo.
+
+## Стек
 
 Backend:
 
@@ -73,9 +83,9 @@ Backend:
 - SQLAlchemy
 - PostgreSQL
 - Alembic
-- Pytest
+- Pydantic
+- pytest
 - httpx
-- MOEX ISS API integration
 
 Frontend:
 
@@ -83,34 +93,51 @@ Frontend:
 - Vite
 - JavaScript
 - CSS
-- Backend API integration
-- Dashboard UI
+- SVG chart rendering
 
 Infrastructure:
 
-- Docker Compose for PostgreSQL
+- Docker
+- Docker Compose
+- nginx-proxy / gateway на сервере
+- HTTPS
 - GitHub Actions CI
-- Root `.env.example`
 
-## Architecture
+Data / market:
 
-Backend modules follow a simple layered structure:
+- MOEX ISS API
+- curated key rate decisions dataset
+- CSV importer
 
-- `router.py` - HTTP endpoints.
-- `service.py` - business logic.
-- `repository.py` - database access.
-- `schemas.py` - Pydantic request/response schemas.
-- `models.py` - SQLAlchemy models.
-- external clients - integration with outside APIs such as MOEX ISS.
+## Архитектура
 
-Main backend modules:
+Общий flow:
 
-- `market`
-- `watchlist`
-- `alerts`
-- `hypotheses`
+```text
+Frontend -> API -> FastAPI routers -> services -> repositories -> PostgreSQL
+                                      -> MOEX ISS API
+```
 
-Frontend is organized around a dashboard page and feature-level sections for market data, watchlist, alerts and hypotheses.
+Backend разделен на модули:
+
+- `market` — тикеры, latest price, MOEX candles;
+- `watchlist` — список наблюдения;
+- `alerts` — ценовые алерты и история событий;
+- `hypotheses` — аналитические гипотезы и Key Rate Impact Analyzer.
+
+В модулях используется простое разделение слоев:
+
+- `router.py` — HTTP endpoints;
+- `service.py` — бизнес-логика;
+- `repository.py` — работа с БД;
+- `schemas.py` — Pydantic request/response models;
+- `models.py` — SQLAlchemy models.
+
+Аналитический engine Key Rate Impact Analyzer вынесен отдельно от router-слоя. Backend startup в Docker выполняет:
+
+```text
+wait postgres -> alembic upgrade head -> import key rate decisions -> uvicorn
+```
 
 ## API Overview
 
@@ -150,92 +177,69 @@ Hypotheses:
 - `GET /api/v1/hypotheses/key-rate-decisions`
 - `POST /api/v1/hypotheses/key-rate-impact/analyze`
 
-## Run with Docker Compose
-
-From the repository root:
+## Локальный запуск через Docker Compose
 
 ```powershell
+git clone https://github.com/nikitaloshenov/FinLab.git
+cd FinLab
 docker compose up --build
 ```
 
-Local URLs:
+Локальные URL:
 
-- Frontend: http://localhost:5173
-- Backend: http://localhost:8000
-- Swagger: http://localhost:8000/docs
+- Frontend: http://127.0.0.1:5173
+- Backend: http://127.0.0.1:8000
+- Swagger: http://127.0.0.1:8000/docs
 
-On backend startup Docker Compose waits for PostgreSQL, runs Alembic migrations and imports the curated key rate decisions dataset from `backend/app/data/key_rate_decisions_official.csv`. The importer uses upsert logic, so repeated local starts should not duplicate decisions.
+При старте backend Docker Compose ждет PostgreSQL, запускает Alembic migrations и импортирует curated key rate decisions dataset из `backend/app/data/key_rate_decisions_official.csv`. Importer использует upsert, поэтому повторный запуск не должен дублировать решения.
 
-This setup is intended for local development/demo, not production deployment.
+### Docker persistence
 
-### API URL for Domain Deploy
-
-The frontend API base URL is controlled by `VITE_API_BASE_URL`.
-
-Local Docker/default:
-
-```env
-VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
-```
-
-When the frontend and backend are served behind the same HTTPS domain and reverse proxy, use a relative API path:
-
-```env
-VITE_API_BASE_URL=/api/v1
-```
-
-For `https://jirniydizainer.ru`, the intended routing is:
-
-- `https://jirniydizainer.ru` -> frontend
-- `https://jirniydizainer.ru/api/v1` -> backend API
-- `https://jirniydizainer.ru/docs` -> Swagger
-
-With same-origin routing, browser CORS is usually not involved. If the frontend calls the backend from a different origin, set `BACKEND_CORS_ORIGINS` explicitly, for example:
-
-```env
-BACKEND_CORS_ORIGINS=https://jirniydizainer.ru
-```
-
-### Docker Data Persistence
-
-PostgreSQL data is stored in the named Docker volume `finlab_postgres_data`.
+PostgreSQL хранит данные в named volume `finlab_postgres_data`.
 
 ```powershell
 docker compose down
 ```
 
-Stops containers but keeps the database volume. Watchlist items, alerts and imported key rate decisions remain available on the next start.
+Останавливает контейнеры, но сохраняет данные БД. Watchlist, alerts и импортированные решения по ключевой ставке останутся доступны после следующего запуска.
 
 ```powershell
 docker compose down -v
 ```
 
-Stops containers and removes Docker volumes. Treat this as a local database reset: watchlist items and alerts will be empty after the next start. The backend will run migrations and import the curated key rate decisions dataset again when it starts.
+Останавливает контейнеры и удаляет volume. Это reset базы данных: watchlist и alerts станут пустыми. При следующем старте backend снова выполнит migrations и импортирует key rate decisions.
 
-If the watchlist is empty after restarting Docker, check whether `docker compose down -v` was used. If it was, add tickers again through Market Universe.
+## Demo Deploy
 
-## Local Setup
+Проект задеплоен на demo-домен:
 
-Create a backend env file from the root template:
+- Frontend: https://jirniydizainer.ru
+- Backend API: https://jirniydizainer.ru/api/v1
+- Swagger: https://jirniydizainer.ru/docs
 
-```powershell
-cd backend
-Copy-Item ..\.env.example .\.env
+На demo-сервере проект работает через reverse proxy:
+
+```text
+https://jirniydizainer.ru -> frontend
+https://jirniydizainer.ru/api/v1 -> backend API
+https://jirniydizainer.ru/docs -> Swagger
 ```
 
-Start PostgreSQL:
+Для такого режима frontend использует относительный API base:
 
-```powershell
-docker compose up -d postgres
+```env
+VITE_API_BASE_URL=/api/v1
 ```
 
-Or use the helper script from the project root:
+Если frontend и backend находятся на разных origins, backend CORS настраивается через:
 
-```powershell
-.\scripts\start-dev.ps1
+```env
+BACKEND_CORS_ORIGINS=https://jirniydizainer.ru,https://www.jirniydizainer.ru
 ```
 
-Run backend:
+## Локальный запуск без Docker
+
+Backend:
 
 ```powershell
 cd backend
@@ -243,10 +247,11 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 alembic upgrade head
+python scripts/import_key_rate_decisions.py --file app/data/key_rate_decisions_official.csv
 python -m uvicorn app.main:app --reload
 ```
 
-Run frontend:
+Frontend:
 
 ```powershell
 cd frontend
@@ -254,22 +259,35 @@ npm install
 npm run dev
 ```
 
-Local URLs:
+## Тесты
 
-- Backend: http://127.0.0.1:8000
-- Swagger: http://127.0.0.1:8000/docs
-- Frontend: http://localhost:5173
-
-## Tests
+Backend:
 
 ```powershell
 cd backend
 python -m pytest
 ```
 
-CI also runs backend tests and frontend build.
+Frontend build:
 
-## Documentation
+```powershell
+cd frontend
+npm run build
+```
+
+Backend покрыт тестами для:
+
+- watchlist;
+- alerts;
+- anonymous sessions;
+- Key Rate Impact Analyzer;
+- MOEX client;
+- CSV importer;
+- API endpoints.
+
+CI также запускает backend tests и frontend build.
+
+## Документация
 
 - [Project Context](PROJECT_CONTEXT.md)
 - [Feature Roadmap](FEATURE_ROADMAP.md)
@@ -277,31 +295,47 @@ CI also runs backend tests and frontend build.
 - [Key Rate Dataset Spec](KEY_RATE_DATASET_SPEC.md)
 - [Audit Log](AUDIT_LOG.md)
 
-## Engineering Focus
+## Что проект демонстрирует
 
-This project demonstrates:
-
-- backend API design;
-- modular FastAPI architecture;
-- SQLAlchemy models and repositories;
+- проектирование backend API;
+- модульную FastAPI-архитектуру;
+- SQLAlchemy models и repository layer;
 - Alembic migrations;
-- external market data integration;
-- error handling and validation;
-- backend testing;
-- CI setup;
-- frontend-backend integration;
-- product-oriented development around financial market data.
+- PostgreSQL persistence;
+- интеграцию с внешним market data API;
+- обработку ошибок и structured API errors;
+- аналитическую backend-логику;
+- event-study подход на исторических данных;
+- pytest и API integration tests;
+- Docker startup flow;
+- CI;
+- frontend integration как демонстрационный слой.
 
-## Limitations
+## Ограничения
 
-- The project is in active development.
-- It is not production-ready.
-- It has no authentication yet.
-- It depends on external market data availability.
-- It should not be used for real trading decisions.
-- UI and analysis flows may change.
-- No public deployment URL is provided yet.
+- проект не является production trading system;
+- проект не является инвестиционной рекомендацией;
+- historical analysis не доказывает причинность и не гарантирует будущую реакцию рынка;
+- данные MOEX могут быть недоступны или отвечать с задержкой;
+- anonymous sessions не заменяют полноценную авторизацию;
+- публичный demo предназначен для демонстрации проекта, а не для реальных торговых решений;
+- UI и аналитические сценарии продолжают развиваться.
 
-## For Employers
+## Roadmap
 
-FinLab demonstrates the ability to design and develop a backend-focused fullstack application with real external data, database persistence, API design, migrations, testing, CI, frontend integration and a clear product development direction.
+Ближайшие возможные направления:
+
+- полноценная авторизация пользователей;
+- сохраненные гипотезы;
+- кэширование MOEX candles;
+- screenshots и demo-flow в README;
+- второй аналитический модуль;
+- portfolio tracker;
+- отдельная landing page.
+
+## Автор
+
+Никита Лощенов
+
+- GitHub: https://github.com/nikitaloshenov/FinLab
+- Telegram: https://t.me/JIRNIYDIZAINER

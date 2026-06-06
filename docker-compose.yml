@@ -11,6 +11,61 @@ services:
       - "5432:5432"
     volumes:
       - finlab_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finlab -d finlab"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: ./backend
+    container_name: finlab_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_NAME: FinLab
+      APP_ENV: development
+      API_V1_PREFIX: /api/v1
+      DATABASE_URL: postgresql+psycopg2://finlab:finlab@postgres:5432/finlab
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      MOEX_BASE_URL: https://iss.moex.com/iss
+      MOEX_DEFAULT_ENGINE: stock
+      MOEX_DEFAULT_MARKET: shares
+      MOEX_DEFAULT_BOARD: TQBR
+      MOEX_TIMEOUT_SECONDS: 15
+      MOEX_RETRY_ATTEMPTS: 2
+      MOEX_RETRY_DELAY_SECONDS: 0.5
+      BACKEND_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: finlab_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+    ports:
+      - "5173:5173"
 
 volumes:
   finlab_postgres_data:

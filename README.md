@@ -150,6 +150,24 @@ Hypotheses:
 - `GET /api/v1/hypotheses/key-rate-decisions`
 - `POST /api/v1/hypotheses/key-rate-impact/analyze`
 
+## Run with Docker Compose
+
+From the repository root:
+
+```powershell
+docker compose up --build
+```
+
+Local URLs:
+
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8000
+- Swagger: http://localhost:8000/docs
+
+On backend startup Docker Compose waits for PostgreSQL, runs Alembic migrations and imports the curated key rate decisions dataset from `backend/app/data/key_rate_decisions_official.csv`. The importer uses upsert logic, so repeated local starts should not duplicate decisions.
+
+This setup is intended for local development/demo, not production deployment.
+
 ## Local Setup
 
 Create a backend env file from the root template:

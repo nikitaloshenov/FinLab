@@ -29,6 +29,12 @@ import {
   buildWatchlistRefreshMessage,
 } from "../shared/lib/batchMessages.js";
 
+const FOOTER_CONTACTS = {
+  githubUrl: "https://github.com/nikitaloshenov/FinLab",
+  telegramUrl: "https://t.me/JIRNIYDIZAINER",
+  telegramHandle: "@JIRNIYDIZAINER",
+};
+
 export function MarketPage() {
   const [watchlist, setWatchlist] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -172,7 +178,7 @@ export function MarketPage() {
       setSelectedTicker(normalizedTicker);
       await loadTickerCandles(normalizedTicker, candleInterval, candleLimit);
 
-      setInfoMessage(`${normalizedTicker} добавлен в watchlist.`);
+      setInfoMessage(`${normalizedTicker} добавлен в список наблюдения.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -212,7 +218,7 @@ export function MarketPage() {
       );
 
       setInfoMessage(
-        `${addedItem?.secid || normalizedTicker} добавлен в watchlist.`
+        `${addedItem?.secid || normalizedTicker} добавлен в список наблюдения.`
       );
     } catch (error) {
       setErrorMessage(error.message);
@@ -245,7 +251,7 @@ export function MarketPage() {
         }
       }
 
-      setInfoMessage(`${secid} удален из watchlist.`);
+      setInfoMessage(`${secid} удален из списка наблюдения.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -432,15 +438,11 @@ export function MarketPage() {
       <section className="hero">
         <div>
           <p className="eyebrow">FinLab Dashboard</p>
-          <h1>Market Watchlist & Alerts</h1>
+          <h1>Панель рыночного анализа</h1>
           <p className="heroText">
-            Рабочая панель для MOEX-тикеров: watchlist, latest price,
-            свечной Market Chart и price alerts в одном интерфейсе.
+            Рабочее пространство для MOEX-тикеров: список наблюдения, график,
+            алерты и проверка рыночных гипотез.
           </p>
-        </div>
-        <div className="heroMeta">
-          <span>MOEX candles</span>
-          <strong>{selectedTicker || "No ticker selected"}</strong>
         </div>
       </section>
 
@@ -531,6 +533,29 @@ export function MarketPage() {
       />
 
       <AlertEventsSection alertEvents={alertEvents} />
+
+      <footer className="siteFooter">
+        <div className="footerBrand">
+          <strong>FinLab</strong>
+          <p>Исторический анализ рынка. Не является инвестиционной рекомендацией.</p>
+        </div>
+        <div className="footerContacts">
+          <a
+            href={FOOTER_CONTACTS.githubUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+          <a
+            href={FOOTER_CONTACTS.telegramUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Telegram: {FOOTER_CONTACTS.telegramHandle}
+          </a>
+        </div>
+      </footer>
     </main>
   );
 }

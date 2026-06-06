@@ -375,11 +375,11 @@ select {
 
 button {
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
-  background: var(--text);
-  color: #ffffff;
+  background: var(--surface);
+  color: var(--muted-strong);
   font-weight: 800;
   transition:
     background 0.15s ease,
@@ -389,7 +389,9 @@ button {
 }
 
 button:hover {
-  background: #2f343b;
+  border-color: #aeb6c1;
+  background: var(--surface-soft);
+  color: var(--text);
 }
 
 button:disabled {
@@ -398,14 +400,21 @@ button:disabled {
 }
 
 .primaryButton {
+  border-color: var(--text);
   background: var(--text);
+  color: #ffffff;
+}
+
+.primaryButton:hover {
+  border-color: #2f343b;
+  background: #2f343b;
   color: #ffffff;
 }
 
 .secondaryButton,
 .subtleButton {
-  border-color: var(--border-strong);
-  background: var(--surface-soft);
+  border-color: var(--border);
+  background: var(--surface);
   color: var(--muted-strong);
 }
 
@@ -417,8 +426,8 @@ button:disabled {
 }
 
 .dangerButton {
-  border-color: #f3b7b0;
-  background: var(--negative-bg);
+  border-color: #efb5ae;
+  background: var(--surface);
   color: var(--negative);
 }
 
@@ -652,11 +661,11 @@ td {
 }
 
 .watchlistCard th:nth-child(3) {
-  width: 96px;
+  width: 94px;
 }
 
 .watchlistCard th:nth-child(4) {
-  width: 96px;
+  width: 122px;
 }
 
 .watchlistCard td {
@@ -672,6 +681,17 @@ td {
 
 .watchlistCard td:nth-child(2) {
   min-width: 0;
+}
+
+.watchlistCard .stackedCell {
+  min-width: 0;
+}
+
+.watchlistCard .stackedCell strong,
+.watchlistCard .stackedCell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .universePanel {
@@ -723,17 +743,17 @@ td {
   max-height: 260px;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 8px;
   scrollbar-color: #c7ced8 transparent;
   scrollbar-width: thin;
 }
 
 .universeItem {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, max-content);
+  gap: 12px;
   align-items: center;
-  padding: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #fafbfc;
@@ -773,9 +793,13 @@ td {
 
 .universeAddButton,
 .universeAddedState {
+  justify-self: end;
+  width: max-content;
+  min-width: 82px;
   min-height: 30px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .universeAddButton {
@@ -816,6 +840,64 @@ td {
 
 .pageMessage {
   margin-bottom: 12px;
+}
+
+.siteFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px 32px;
+  width: 100vw;
+  margin: 34px calc(50% - 50vw) 0;
+  padding: 24px max(24px, calc((100vw - 1440px) / 2 + 16px)) 26px;
+  border-top: 1px solid var(--border);
+  background: #f9fafb;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.siteFooter strong {
+  display: block;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.footerBrand p {
+  max-width: 540px;
+  margin: 7px 0 0;
+}
+
+.footerContacts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.footerContacts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.footerContacts a:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-soft);
+  color: var(--text);
 }
 
 .error,
@@ -1126,17 +1208,17 @@ td {
 .horizonPill {
   min-height: 36px;
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: var(--surface-soft);
+  background: var(--surface);
   color: var(--muted-strong);
   font-size: 13px;
   font-weight: 900;
 }
 
 .horizonPill.active {
-  border-color: var(--text);
-  background: var(--text);
+  border-color: #4b5563;
+  background: #4b5563;
   color: #ffffff;
 }
 
@@ -1312,8 +1394,14 @@ td {
   padding: 18px;
 }
 
+.primaryResultBlock {
+  background: var(--surface);
+}
+
 .secondaryResultBlock {
-  background: #fafbfc;
+  border-color: #edf0f3;
+  background: #fbfcfd;
+  box-shadow: none;
 }
 
 .resultBlockHeader {
@@ -1368,6 +1456,24 @@ td {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #fafbfc;
+}
+
+.qualityBlock {
+  padding: 14px 16px;
+}
+
+.qualitySummary {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f3;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.qualitySummary strong {
+  color: var(--muted-strong);
+  font-size: 15px;
 }
 
 .resultMetric span,
@@ -1504,7 +1610,7 @@ td {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   overscroll-behavior-x: contain;
 }
 
@@ -1516,8 +1622,8 @@ td {
 
 .compactTable th,
 .compactTable td {
-  padding: 13px 12px;
-  font-size: 15px;
+  padding: 12px 10px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -1528,7 +1634,32 @@ td {
 .compactTable td:nth-child(5),
 .compactTable th:nth-child(5) {
   white-space: normal;
-  min-width: 112px;
+  min-width: 0;
+}
+
+.horizonSummaryTable table {
+  table-layout: fixed;
+}
+
+.horizonSummaryTable th:nth-child(1),
+.horizonSummaryTable td:nth-child(1) {
+  width: 18%;
+}
+
+.horizonSummaryTable th:nth-child(2),
+.horizonSummaryTable td:nth-child(2),
+.horizonSummaryTable th:nth-child(3),
+.horizonSummaryTable td:nth-child(3),
+.horizonSummaryTable th:nth-child(4),
+.horizonSummaryTable td:nth-child(4),
+.horizonSummaryTable th:nth-child(6),
+.horizonSummaryTable td:nth-child(6) {
+  width: 14%;
+}
+
+.horizonSummaryTable th:nth-child(5),
+.horizonSummaryTable td:nth-child(5) {
+  width: 26%;
 }
 
 .compactTable td.positive {
@@ -1727,6 +1858,22 @@ td {
 
   .compactTable table {
     min-width: 560px;
+  }
+
+  .compactTable {
+    overflow-x: auto;
+  }
+
+  .siteFooter {
+    grid-template-columns: 1fr;
+  }
+
+  .footerContacts {
+    justify-content: flex-start;
+  }
+
+  .footerContacts a {
+    max-width: 100%;
   }
 }
 

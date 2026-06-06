@@ -43,7 +43,7 @@ export function MarketUniverseQuickAdd({
     <div className="universePanel">
       <div className="universeHeader">
         <div>
-          <h3>Market universe</h3>
+          <h3>Доступные тикеры</h3>
           <p>Быстро добавь популярный MOEX ticker.</p>
         </div>
       </div>
@@ -53,7 +53,7 @@ export function MarketUniverseQuickAdd({
           className="universeSearch"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search ticker, name, sector"
+          placeholder="Поиск ticker, название, сектор"
         />
 
         <select
@@ -61,7 +61,7 @@ export function MarketUniverseQuickAdd({
           value={sector}
           onChange={(event) => setSector(event.target.value)}
         >
-          <option value="All">All sectors</option>
+          <option value="All">Все сектора</option>
           {MARKET_UNIVERSE_SECTORS.map((sectorName) => (
             <option key={sectorName} value={sectorName}>
               {sectorName}
@@ -72,7 +72,7 @@ export function MarketUniverseQuickAdd({
 
       {filteredTickers.length === 0 ? (
         <div className="emptyState compact">
-          <strong>No tickers found</strong>
+          <strong>Тикеры не найдены</strong>
           <p>Попробуй другой запрос или сектор.</p>
         </div>
       ) : (
@@ -98,7 +98,7 @@ export function MarketUniverseQuickAdd({
                     onAddTicker(item.secid);
                   }}
                 >
-                  {isAdded ? "Added" : "Add"}
+                  {isAdded ? "Добавлено" : "Добавить"}
                 </button>
               </article>
             );

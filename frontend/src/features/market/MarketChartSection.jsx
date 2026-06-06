@@ -28,17 +28,17 @@ export function MarketChartSection({
     <section className="card marketChartCard">
       <div className="cardHeader">
         <div>
-          <h2>Market Chart</h2>
+          <h2>Рыночный график</h2>
           <p>
             {selectedTicker
               ? `Свечи MOEX для выбранного тикера: ${selectedTicker}.`
-              : "Выбери тикер в watchlist, чтобы открыть рыночный график."}
+              : "Выбери тикер в списке наблюдения, чтобы открыть рыночный график."}
           </p>
         </div>
 
         <div className="chartToolbar">
           <label>
-            <span>Interval</span>
+            <span>Интервал</span>
             <select
               value={candleInterval}
               disabled={!selectedTicker || isLoading}
@@ -51,7 +51,7 @@ export function MarketChartSection({
           </label>
 
           <label>
-            <span>Candles</span>
+            <span>Свечи</span>
             <select
               value={candleLimit}
               disabled={!selectedTicker || isLoading}
@@ -70,17 +70,17 @@ export function MarketChartSection({
             disabled={!selectedTicker || isLoading}
             onClick={onReload}
           >
-            {isLoading ? "Loading..." : "Reload chart"}
+            {isLoading ? "Загрузка..." : "Обновить график"}
           </button>
         </div>
       </div>
 
-      <p className="sectionHint">Source: MOEX candles</p>
+      <p className="sectionHint">Источник: свечи MOEX</p>
 
       {!selectedTicker && (
         <div className="emptyState">
           <strong>Выбери тикер</strong>
-          <p>Кликни по тикеру в watchlist, чтобы построить Market Chart.</p>
+          <p>Кликни по тикеру в списке наблюдения, чтобы построить график.</p>
         </div>
       )}
 
@@ -94,7 +94,7 @@ export function MarketChartSection({
       {selectedTicker && isLoading && (
         <div className="emptyState">
           <strong>Загрузка свечей</strong>
-          <p>Получаем MOEX candles для выбранного интервала.</p>
+          <p>Получаем свечи MOEX для выбранного интервала.</p>
         </div>
       )}
 
@@ -108,20 +108,20 @@ export function MarketChartSection({
       {selectedTicker && !isLoading && !errorMessage && candleItems.length > 0 && stats && (
         <>
           <div className="chartStats">
-            <StatItem label="Latest" value={formatPrice(stats.latestClose)} />
+            <StatItem label="Последняя" value={formatPrice(stats.latestClose)} />
             <StatItem
-              label="Change"
+              label="Изменение"
               value={formatSignedPrice(stats.change)}
               tone={stats.change >= 0 ? "positive" : "negative"}
             />
             <StatItem
-              label="Change %"
+              label="Изм. %"
               value={formatPercent(stats.changePercent)}
               tone={stats.change >= 0 ? "positive" : "negative"}
             />
-            <StatItem label="Min close" value={formatPrice(stats.minClose)} />
-            <StatItem label="Max close" value={formatPrice(stats.maxClose)} />
-            <StatItem label="Candles" value={stats.count} />
+            <StatItem label="Мин. close" value={formatPrice(stats.minClose)} />
+            <StatItem label="Макс. close" value={formatPrice(stats.maxClose)} />
+            <StatItem label="Свечи" value={stats.count} />
           </div>
 
           <div className="marketChartLayout">
@@ -129,20 +129,19 @@ export function MarketChartSection({
 
             <div className="candlesPanel">
               <div className="panelTitle">
-                <span>Latest candles</span>
-                <strong>{latestCandles.length}</strong>
+                <span>Последние свечи</span>
               </div>
 
               <div className="tableWrapper candlesTable">
                 <table>
                   <thead>
                     <tr>
-                      <th>Begin</th>
+                      <th>Начало</th>
                       <th>Open</th>
                       <th>High</th>
                       <th>Low</th>
                       <th>Close</th>
-                      <th>Volume</th>
+                      <th>Объём</th>
                     </tr>
                   </thead>
 
@@ -211,7 +210,7 @@ function MarketLineChart({ candles, interval }) {
       <svg
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         role="img"
-        aria-label="MOEX candles close price chart"
+        aria-label="График цены закрытия по свечам MOEX"
       >
         {yTicks.map((tick) => {
           const ratio = (tick - axisMin) / valueRange;

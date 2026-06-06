@@ -20,39 +20,39 @@ export function MarketOverviewSection({
     <section className="card overviewSection">
       <div className="cardHeader">
         <div>
-          <h2>Market Overview</h2>
-          <p>Краткое состояние watchlist, alert'ов и выбранного тикера.</p>
+          <h2>Обзор рынка</h2>
+          <p>Краткое состояние списка наблюдения, алертов и выбранного тикера.</p>
         </div>
       </div>
 
       <div className="overviewGrid">
         <OverviewCard
-          label="Watchlist tickers"
+          label="Тикеры"
           value={isLoading ? "..." : watchlistItems.length}
           hint="Всего отслеживается"
         />
         <OverviewCard
-          label="Active alerts"
+          label="Активные алерты"
           value={isLoading ? "..." : activeAlerts}
           hint="Ожидают проверки"
         />
         <OverviewCard
-          label="Latest selected price"
+          label="Последняя цена"
           value={latestCandle ? formatPrice(latestCandle.close) : "—"}
           hint={selectedTicker || "Тикер не выбран"}
         />
         <OverviewCard
-          label="Candles"
+          label="Свечи"
           value={candleItems.length}
           hint={selectedTicker ? `Для ${selectedTicker}` : "Нет выбранного тикера"}
         />
         <OverviewCard
-          label="Last update"
+          label="Последнее обновление"
           value={latestCandle ? formatDate(latestCandle.begin) : "—"}
           hint="Последняя свеча MOEX"
         />
         <OverviewCard
-          label="Triggered events"
+          label="События алертов"
           value={isLoading ? "..." : eventItems.length}
           hint="История срабатываний"
         />

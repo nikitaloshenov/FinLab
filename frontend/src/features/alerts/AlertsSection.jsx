@@ -23,7 +23,7 @@ export function AlertsSection({
     <section className="card alertsCard">
       <div className="cardHeader">
         <div>
-          <h2>Price Alerts</h2>
+          <h2>Ценовые алерты</h2>
           <p>Создай правило: цена выше или ниже заданного уровня.</p>
         </div>
 
@@ -38,7 +38,7 @@ export function AlertsSection({
           }
           onClick={onCheckAllActiveAlerts}
         >
-          {isCheckingAllAlerts ? "Checking..." : "Check all active alerts"}
+          {isCheckingAllAlerts ? "Проверяем..." : "Проверить активные алерты"}
         </button>
       </div>
 
@@ -55,26 +55,26 @@ export function AlertsSection({
           onChange={(event) => onAlertConditionChange(event.target.value)}
           disabled={isActionLoading}
         >
-          <option value="above">above</option>
-          <option value="below">below</option>
+          <option value="above">выше</option>
+          <option value="below">ниже</option>
         </select>
 
         <input
           value={alertTargetPrice}
           onChange={(event) => onAlertTargetPriceChange(event.target.value)}
-          placeholder="Target price"
+          placeholder="Целевая цена"
           disabled={isActionLoading}
         />
 
         <button className="primaryButton" type="submit" disabled={isActionLoading}>
-          {isActionLoading ? "Loading..." : "Create alert"}
+          {isActionLoading ? "Загрузка..." : "Создать алерт"}
         </button>
       </form>
 
       {alerts.length === 0 && (
         <div className="emptyState compact">
-          <strong>Alert'ов пока нет</strong>
-          <p>Создай alert, чтобы отслеживать price events по тикеру.</p>
+          <strong>Алертов пока нет</strong>
+          <p>Создай алерт, чтобы отслеживать ценовые события по тикеру.</p>
         </div>
       )}
 
@@ -85,11 +85,11 @@ export function AlertsSection({
               <tr>
                 <th>ID</th>
                 <th>Ticker</th>
-                <th>Condition</th>
-                <th>Target</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>Условие</th>
+                <th>Цель</th>
+                <th>Статус</th>
+                <th>Создан</th>
+                <th>Действия</th>
               </tr>
             </thead>
 
@@ -109,7 +109,7 @@ export function AlertsSection({
                           alert.is_active ? "statusBadge" : "statusBadge muted"
                         }
                       >
-                        {alert.is_active ? "active" : "inactive"}
+                        {alert.is_active ? "активен" : "неактивен"}
                       </span>
                     </td>
                     <td>{formatDate(alert.created_at)}</td>
@@ -126,7 +126,7 @@ export function AlertsSection({
                           }
                           onClick={() => onCheckAlert(alert.id)}
                         >
-                          {isChecking ? "..." : "Check"}
+                          {isChecking ? "..." : "Проверить"}
                         </button>
 
                         <button
@@ -139,7 +139,7 @@ export function AlertsSection({
                           }
                           onClick={() => onDeleteAlert(alert.id)}
                         >
-                          Delete
+                          Удалить
                         </button>
                       </div>
                     </td>

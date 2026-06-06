@@ -145,7 +145,7 @@ export function HypothesisLabSection({ selectedTicker }) {
       <div className="hypothesisHeader">
         <div>
           <p className="sectionKicker">Key Rate Impact</p>
-          <h2>Key Rate Impact Analyzer</h2>
+          <h2>Анализ реакции на ставку</h2>
           <p>
             Показывает, как выбранная акция исторически реагировала на похожие
             решения по ключевой ставке.

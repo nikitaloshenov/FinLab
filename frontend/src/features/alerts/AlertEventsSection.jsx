@@ -5,15 +5,15 @@ export function AlertEventsSection({ alertEvents }) {
     <section className="card eventsCard">
       <div className="cardHeader">
         <div>
-          <h2>Alert Events</h2>
-          <p>История срабатываний alert’ов.</p>
+          <h2>История алертов</h2>
+          <p>Журнал срабатываний ценовых алертов.</p>
         </div>
       </div>
 
       {alertEvents.length === 0 && (
         <div className="emptyState compact">
           <strong>Событий пока нет</strong>
-          <p>Когда alert сработает, событие появится в этом журнале.</p>
+          <p>Когда алерт сработает, событие появится в этом журнале.</p>
         </div>
       )}
 
@@ -24,14 +24,17 @@ export function AlertEventsSection({ alertEvents }) {
               <div className="eventMain">
                 <span className="eventTicker">{event.secid}</span>
                 <strong>
-                  {formatPrice(event.price)} / target {formatPrice(event.target_price)}
+                  {formatPrice(event.price)} / цель {formatPrice(event.target_price)}
                 </strong>
-                <p>{event.message || `${event.condition} alert triggered.`}</p>
+                <p>
+                  {event.message ||
+                    `Алерт с условием ${event.condition} сработал.`}
+                </p>
               </div>
 
               <div className="eventMeta">
                 <span>#{event.id}</span>
-                <span>Alert #{event.alert_id}</span>
+                <span>Алерт #{event.alert_id}</span>
                 <span>{formatDate(event.created_at)}</span>
               </div>
             </article>

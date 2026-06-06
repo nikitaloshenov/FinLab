@@ -10,8 +10,8 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN chmod +x scripts/docker_start.sh
+RUN test -f /app/scripts/docker_start.sh && chmod +x /app/scripts/docker_start.sh
 
 EXPOSE 8000
 
-CMD ["./scripts/docker_start.sh"]
+CMD ["sh", "/app/scripts/docker_start.sh"]

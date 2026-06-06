@@ -24,8 +24,8 @@ export function HypothesisResultPanel({ result, isLoading }) {
             реакцию.
           </strong>
           <p>
-            Результат покажет краткий вывод, уверенность, выраженный горизонт
-            и реакцию по выбранным периодам.
+            Результат покажет краткий вывод, выраженный горизонт и реакцию по
+            выбранным периодам.
           </p>
         </div>
       </div>
@@ -35,10 +35,7 @@ export function HypothesisResultPanel({ result, isLoading }) {
   return (
     <div className="hypothesisResult">
       <SummaryCard summary={result.summary} />
-      <div className="resultPairGrid">
-        <ConfidenceCard confidence={result.confidence} />
-        <BestHorizonCard bestHorizon={result.best_horizon} />
-      </div>
+      <BestHorizonCard bestHorizon={result.best_horizon} />
       {!result.benchmark_ticker && (
         <p className="benchmarkInlineNote">
           Бенчмарк не выбран — показана абсолютная реакция акции.
@@ -47,6 +44,7 @@ export function HypothesisResultPanel({ result, isLoading }) {
       <HorizonSummaryTable items={result.horizon_summary || []} />
       <BenchmarkSummary result={result} />
       <DataQualityDetails
+        confidence={result.confidence}
         skippedSummary={result.skipped_summary}
         summary={result.summary}
       />
@@ -67,9 +65,7 @@ function SummaryCard({ summary }) {
       <h3>{title}</h3>
       <p>{summary?.short_conclusion}</p>
       <div className="summaryStats">
-        <span>
-          {summary?.events_used || 0} событий проанализировано
-        </span>
+        <span>{summary?.events_used || 0} событий проанализировано</span>
         {(summary?.events_skipped ?? 0) > 0 && (
           <span>Пропущено: {summary.events_skipped}</span>
         )}
@@ -81,28 +77,29 @@ function SummaryCard({ summary }) {
   );
 }
 
-function ConfidenceCard({ confidence }) {
+function DataQualityNotes({ confidence }) {
+  const reasons = confidence?.reasons || [];
+
+  if (reasons.length === 0) {
+    return null;
+  }
+
   return (
-    <section className="resultBlock compactResultBlock">
-      <div className="resultBlockHeader">
-        <h3>Уверенность анализа</h3>
-      </div>
-      <strong className="insightValue">
-        {confidence?.label || "Не рассчитана"}
-      </strong>
+    <div className="qualitySummary">
+      <strong>Особенности выборки</strong>
       <ul className="limitationList">
-        {(confidence?.reasons || []).slice(0, 3).map((reason) => (
-          <li key={reason}>{reason}</li>
+        {reasons.slice(0, 3).map((reason) => (
+          <li key={reason}>{formatDataQualityReason(reason)}</li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }
 
 function BestHorizonCard({ bestHorizon }) {
   if (!bestHorizon) {
     return (
-      <section className="resultBlock">
+      <section className="resultBlock primaryResultBlock">
         <div className="resultBlockHeader">
           <h3>Выраженный горизонт не найден</h3>
         </div>
@@ -114,14 +111,14 @@ function BestHorizonCard({ bestHorizon }) {
   }
 
   return (
-    <section className="resultBlock compactResultBlock">
+    <section className="resultBlock primaryResultBlock">
       <div className="resultBlockHeader">
         <h3>Самый выраженный горизонт</h3>
       </div>
       <strong className="insightValue">{bestHorizon.horizon_label}</strong>
       <div className="resultMetricsGrid compact">
         <Metric
-          label="Средняя реакция"
+          label="Средняя"
           value={formatPercent(bestHorizon.average_return_percent)}
           tone={getTone(bestHorizon.average_return_percent)}
         />
@@ -130,7 +127,7 @@ function BestHorizonCard({ bestHorizon }) {
           value={formatPercent(bestHorizon.median_return_percent)}
           tone={getTone(bestHorizon.median_return_percent)}
         />
-        <Metric label="Событий / покрытие" value={bestHorizon.events_with_data} />
+        <Metric label="Событий" value={bestHorizon.events_with_data} />
       </div>
       <p className="resultHint">
         {bestHorizon.typical_effect_label || bestHorizon.typical_effect}.
@@ -144,23 +141,23 @@ function HorizonSummaryTable({ items }) {
   const visibleItems = items.filter((item) => PRIMARY_HORIZONS.has(item.horizon_days));
 
   return (
-    <section className="resultBlock">
+    <section className="resultBlock horizonTableBlock">
       <div className="resultBlockHeader">
         <h3>Реакция по горизонтам</h3>
       </div>
       {visibleItems.length === 0 ? (
         <p className="resultHint">Нет данных для таблицы горизонтов.</p>
       ) : (
-        <div className="tableWrapper compactTable">
+        <div className="tableWrapper compactTable horizonSummaryTable">
           <table>
             <thead>
               <tr>
                 <th>Горизонт</th>
-                <th>Средняя реакция</th>
+                <th>Средняя</th>
                 <th>Медиана</th>
-                <th>События</th>
-                <th>Интерпретация</th>
-                <th>Покрытие</th>
+                <th>Счёт</th>
+                <th>Эффект</th>
+                <th>Данные</th>
               </tr>
             </thead>
             <tbody>
@@ -176,14 +173,10 @@ function HorizonSummaryTable({ items }) {
                   <td className={getTone(item.median_return_percent)}>
                     {formatPercent(item.median_return_percent)}
                   </td>
+                  <td>{formatEventCounts(item)}</td>
+                  <td>{formatEffect(item)}</td>
                   <td>
-                    {formatEventCounts(item)}
-                  </td>
-                  <td>
-                    {formatEffect(item)}
-                  </td>
-                  <td>
-                    {item.events_with_data} / {item.events_total}
+                    {item.events_with_data}/{item.events_total}
                   </td>
                 </tr>
               ))}
@@ -207,7 +200,7 @@ function BenchmarkSummary({ result }) {
       <div className="resultBlockHeader">
         <h3>Сравнение с бенчмарком</h3>
       </div>
-      {result.benchmark_ticker && benchmarkItems.length > 0 ? (
+      {benchmarkItems.length > 0 ? (
         <div className="tableWrapper compactTable">
           <table>
             <thead>
@@ -249,17 +242,18 @@ function BenchmarkSummary({ result }) {
   );
 }
 
-function DataQualityDetails({ skippedSummary, summary }) {
+function DataQualityDetails({ confidence, skippedSummary, summary }) {
   const reasons = skippedSummary?.reasons || [];
   const analyzed = summary?.events_used || 0;
   const total = summary?.events_total || 0;
   const skipped = skippedSummary?.skipped_total ?? summary?.events_skipped ?? 0;
 
   return (
-    <section className="resultBlock secondaryResultBlock">
+    <section className="resultBlock secondaryResultBlock qualityBlock">
       <details className="eventDetails">
         <summary>Качество данных</summary>
         <div className="detailsBody">
+          <DataQualityNotes confidence={confidence} />
           <p className="resultHint">
             Проанализировано: {analyzed} из {total} событий. Пропущено: {skipped}.
           </p>
@@ -402,11 +396,11 @@ function formatResultType(value) {
     insufficient_data: "Недостаточно данных",
   };
 
-  return labels[value] || "исторический анализ";
+  return labels[value] || "Исторический анализ";
 }
 
 function formatEventCounts(item) {
-  return `${item.positive_count} рост / ${item.negative_count} падение / ${item.neutral_count} нейтр.`;
+  return `${item.positive_count}/${item.negative_count}/${item.neutral_count}`;
 }
 
 function formatEffect(item) {
@@ -531,11 +525,32 @@ function formatLimitation(value) {
   return value;
 }
 
+function formatDataQualityReason(value) {
+  const normalizedValue = String(value || "").trim();
+  const lowerValue = normalizedValue.toLowerCase();
+
+  if (lowerValue.includes("small number") || lowerValue.includes("few events")) {
+    return "Малое количество событий ограничивает интерпретацию результата.";
+  }
+
+  if (lowerValue.includes("extraordinary") || lowerValue.includes("disruption")) {
+    return "В датасете есть нестандартные рыночные события.";
+  }
+
+  if (lowerValue.includes("missing") || lowerValue.includes("candle")) {
+    return "Часть событий может быть пропущена из-за отсутствия рыночных данных.";
+  }
+
+  return normalizedValue
+    .replace(/confidence/gi, "интерпретацию")
+    .replace(/low/gi, "ограниченную");
+}
+
 function formatEventDirection(value) {
   const labels = {
-    rate_cut: "Снижение ставки",
-    rate_hike: "Повышение ставки",
-    rate_hold: "Ставка без изменений",
+    rate_cut: "снижение ставки",
+    rate_hike: "повышение ставки",
+    rate_hold: "ставка без изменений",
   };
 
   return labels[value] || formatUnknownTechnicalValue(value);

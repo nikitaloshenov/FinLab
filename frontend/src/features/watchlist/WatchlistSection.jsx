@@ -24,7 +24,7 @@ export function WatchlistSection({
     <section className="card watchlistCard">
       <div className="cardHeader">
         <div>
-          <h2>Watchlist</h2>
+          <h2>Список наблюдения</h2>
           <p>Тикеры, которые сейчас отслеживаются в системе.</p>
         </div>
 
@@ -39,7 +39,7 @@ export function WatchlistSection({
           }
           onClick={onRefreshAllPrices}
         >
-          {isRefreshAllLoading ? "Refreshing..." : "Refresh all prices"}
+          {isRefreshAllLoading ? "Обновляем..." : "Обновить цены"}
         </button>
       </div>
 
@@ -56,7 +56,7 @@ export function WatchlistSection({
           type="submit"
           disabled={isActionLoading || isRefreshAllLoading}
         >
-          {isActionLoading ? "Loading..." : "Add ticker"}
+          {isActionLoading ? "Загрузка..." : "Добавить тикер"}
         </button>
       </form>
 
@@ -68,14 +68,14 @@ export function WatchlistSection({
 
       {isLoading && (
         <div className="emptyState compact">
-          <strong>Загрузка watchlist</strong>
+          <strong>Загрузка списка наблюдения</strong>
           <p>Получаем список отслеживаемых тикеров.</p>
         </div>
       )}
 
       {!isLoading && !errorMessage && watchlist.length === 0 && (
         <div className="emptyState compact">
-          <strong>Watchlist пустой</strong>
+          <strong>Список наблюдения пустой</strong>
           <p>Добавь тикер MOEX, чтобы начать мониторинг.</p>
         </div>
       )}
@@ -86,9 +86,9 @@ export function WatchlistSection({
             <thead>
               <tr>
                 <th>Ticker</th>
-                <th>Name</th>
-                <th>Last price</th>
-                <th>Actions</th>
+                <th>Название</th>
+                <th>Цена</th>
+                <th>Действия</th>
               </tr>
             </thead>
 
@@ -121,7 +121,7 @@ export function WatchlistSection({
                     <td>
                       <div className="stackedCell">
                         <strong>{item.short_name || "—"}</strong>
-                        <span>Added {formatDate(item.created_at)}</span>
+                        <span>Добавлен {formatDate(item.created_at)}</span>
                       </div>
                     </td>
                     <td className="numericCell">{formatPrice(item.latest_price)}</td>
@@ -137,7 +137,7 @@ export function WatchlistSection({
                           }
                           onClick={() => onRefreshTicker(item.secid)}
                         >
-                          {isTickerRefreshing ? "..." : "Refresh"}
+                          {isTickerRefreshing ? "..." : "Обновить"}
                         </button>
 
                         <button
@@ -150,7 +150,7 @@ export function WatchlistSection({
                           }
                           onClick={() => onDeleteTicker(item.secid)}
                         >
-                          Delete
+                          Удалить
                         </button>
                       </div>
                     </td>

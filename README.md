@@ -168,6 +168,34 @@ On backend startup Docker Compose waits for PostgreSQL, runs Alembic migrations 
 
 This setup is intended for local development/demo, not production deployment.
 
+### API URL for Domain Deploy
+
+The frontend API base URL is controlled by `VITE_API_BASE_URL`.
+
+Local Docker/default:
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
+```
+
+When the frontend and backend are served behind the same HTTPS domain and reverse proxy, use a relative API path:
+
+```env
+VITE_API_BASE_URL=/api/v1
+```
+
+For `https://jirniydizainer.ru`, the intended routing is:
+
+- `https://jirniydizainer.ru` -> frontend
+- `https://jirniydizainer.ru/api/v1` -> backend API
+- `https://jirniydizainer.ru/docs` -> Swagger
+
+With same-origin routing, browser CORS is usually not involved. If the frontend calls the backend from a different origin, set `BACKEND_CORS_ORIGINS` explicitly, for example:
+
+```env
+BACKEND_CORS_ORIGINS=https://jirniydizainer.ru
+```
+
 ### Docker Data Persistence
 
 PostgreSQL data is stored in the named Docker volume `finlab_postgres_data`.

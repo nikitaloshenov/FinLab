@@ -59,6 +59,7 @@ export function MarketPage() {
   const [refreshingTickers, setRefreshingTickers] = useState([]);
   const [checkingAlerts, setCheckingAlerts] = useState([]);
   const quickAddInFlightRef = useRef("");
+  const alertCreateInFlightRef = useRef(false);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
@@ -307,25 +308,40 @@ export function MarketPage() {
   async function handleCreateAlert(event) {
     event.preventDefault();
 
-    const normalizedTicker = alertTicker.trim().toUpperCase();
-    const normalizedTargetPrice = alertTargetPrice.trim();
-
-    if (!normalizedTicker) {
-      setErrorMessage("Введите тикер для alert.");
+    if (alertCreateInFlightRef.current) {
       return;
     }
 
-    if (!normalizedTargetPrice) {
-      setErrorMessage("Введите целевую цену.");
+    const normalizedTicker = alertTicker.trim().toUpperCase();
+    const normalizedTargetPrice = alertTargetPrice.trim();
+    const numericTargetPrice = Number(normalizedTargetPrice);
+
+    if (!normalizedTicker) {
+      setErrorMessage("Введите тикер для алерта.");
+      return;
+    }
+
+    if (!["above", "below"].includes(alertCondition)) {
+      setErrorMessage("Выберите корректное условие алерта.");
+      return;
+    }
+
+    if (
+      !normalizedTargetPrice ||
+      Number.isNaN(numericTargetPrice) ||
+      numericTargetPrice <= 0
+    ) {
+      setErrorMessage("Введите целевую цену больше 0.");
       return;
     }
 
     try {
+      alertCreateInFlightRef.current = true;
       setIsActionLoading(true);
       setErrorMessage("");
       setInfoMessage("");
 
-      await createAlert({
+      const createdAlert = await createAlert({
         secid: normalizedTicker,
         condition: alertCondition,
         targetPrice: normalizedTargetPrice,
@@ -335,12 +351,38 @@ export function MarketPage() {
       setAlertCondition("above");
       setAlertTargetPrice("");
 
-      await loadAlerts();
+      let checkResult = null;
 
-      setInfoMessage(`Alert для ${normalizedTicker} создан.`);
+      if (createdAlert?.id) {
+        setCheckingAlerts((currentAlerts) => [...currentAlerts, createdAlert.id]);
+
+        try {
+          checkResult = await checkAlert(createdAlert.id);
+        } finally {
+          setCheckingAlerts((currentAlerts) =>
+            currentAlerts.filter((id) => id !== createdAlert.id)
+          );
+        }
+      }
+
+      await Promise.all([loadAlerts(), loadAlertEvents()]);
+
+      if (checkResult?.triggered) {
+        setInfoMessage(
+          `Алерт для ${normalizedTicker} создан и сразу сработал.`
+        );
+      } else if (checkResult) {
+        setInfoMessage(
+          `Алерт для ${normalizedTicker} создан и проверен по последней цене.`
+        );
+      } else {
+        setInfoMessage(`Алерт для ${normalizedTicker} создан.`);
+      }
     } catch (error) {
       setErrorMessage(error.message);
+      await Promise.all([loadAlerts(), loadAlertEvents()]);
     } finally {
+      alertCreateInFlightRef.current = false;
       setIsActionLoading(false);
     }
   }

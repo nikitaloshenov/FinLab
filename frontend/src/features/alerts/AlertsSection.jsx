@@ -79,12 +79,12 @@ export function AlertsSection({
       )}
 
       {alerts.length > 0 && (
-        <div className="tableWrapper">
+        <div className="tableWrapper alertsTableWrapper">
           <table>
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Ticker</th>
+                <th>Тикер</th>
                 <th>Условие</th>
                 <th>Цель</th>
                 <th>Статус</th>
@@ -101,15 +101,19 @@ export function AlertsSection({
                   <tr key={alert.id}>
                     <td>#{alert.id}</td>
                     <td className="ticker">{alert.secid}</td>
-                    <td>{alert.condition}</td>
+                    <td>{formatCondition(alert.condition)}</td>
                     <td>{formatPrice(alert.target_price)}</td>
                     <td>
                       <span
                         className={
-                          alert.is_active ? "statusBadge" : "statusBadge muted"
+                          getAlertStatusTone(alert) === "active"
+                            ? "statusBadge"
+                            : getAlertStatusTone(alert) === "triggered"
+                              ? "statusBadge triggered"
+                              : "statusBadge muted"
                         }
                       >
-                        {alert.is_active ? "активен" : "неактивен"}
+                        {formatAlertStatus(alert)}
                       </span>
                     </td>
                     <td>{formatDate(alert.created_at)}</td>
@@ -152,4 +156,29 @@ export function AlertsSection({
       )}
     </section>
   );
+}
+
+function formatCondition(condition) {
+  const labels = {
+    above: "выше",
+    below: "ниже",
+  };
+
+  return labels[condition] || condition;
+}
+
+function formatAlertStatus(alert) {
+  if (alert.triggered_at) {
+    return "сработал";
+  }
+
+  return alert.is_active ? "активен" : "неактивен";
+}
+
+function getAlertStatusTone(alert) {
+  if (alert.triggered_at) {
+    return "triggered";
+  }
+
+  return alert.is_active ? "active" : "inactive";
 }

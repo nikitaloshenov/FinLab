@@ -3,27 +3,28 @@
 }
 
 :root {
-  color-scheme: dark;
-  --bg: #080b12;
-  --panel: #101722;
-  --panel-strong: #121c2b;
-  --surface: #0b111b;
-  --surface-soft: #141f2f;
-  --border: #243244;
-  --border-strong: #33475f;
-  --text: #eef4ff;
-  --muted: #95a4b8;
-  --muted-strong: #c2ccda;
-  --accent: #38bdf8;
-  --accent-soft: rgba(56, 189, 248, 0.12);
-  --positive: #86efac;
-  --positive-bg: rgba(34, 197, 94, 0.12);
-  --negative: #fca5a5;
-  --negative-bg: rgba(239, 68, 68, 0.12);
-  --warning: #facc15;
-  --radius: 18px;
-  --radius-sm: 12px;
-  --shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --panel-strong: #f8fafc;
+  --surface: #ffffff;
+  --surface-soft: #f3f5f7;
+  --border: #e2e5ea;
+  --border-strong: #cfd5dd;
+  --text: #171a1f;
+  --muted: #6f7782;
+  --muted-strong: #3f4650;
+  --accent: #2f3a45;
+  --accent-soft: rgba(47, 58, 69, 0.08);
+  --positive: #197144;
+  --positive-bg: #eef8f2;
+  --negative: #b42318;
+  --negative-bg: #fff1f0;
+  --warning: #8a5a00;
+  --warning-bg: #fff7df;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
 html,
@@ -37,8 +38,7 @@ body {
   margin: 0;
   font-family:
     Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background:
-    linear-gradient(180deg, #0a0f19 0%, #080b12 44%, #07090f 100%);
+  background: var(--bg);
   color: var(--text);
 }
 
@@ -63,14 +63,14 @@ select {
   margin-bottom: 14px;
   padding: 20px 22px;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 22px;
   background: var(--panel);
   box-shadow: var(--shadow);
 }
 
 .eyebrow {
   margin: 0 0 10px;
-  color: var(--accent);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -113,7 +113,7 @@ h1 {
 
 .heroMeta strong {
   display: block;
-  color: var(--warning);
+  color: var(--text);
   font-size: 20px;
   line-height: 1.2;
 }
@@ -125,7 +125,7 @@ h1 {
 .card {
   padding: 22px;
   border: 1px solid var(--border);
-  border-radius: 22px;
+  border-radius: 20px;
   background: var(--panel);
   box-shadow: var(--shadow);
 }
@@ -252,7 +252,7 @@ h1 {
   gap: 10px;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--surface);
 }
 
@@ -293,7 +293,7 @@ h1 {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
 }
 
 .priceChart svg {
@@ -303,7 +303,7 @@ h1 {
 }
 
 .priceChartGrid {
-  stroke: #2b3c52;
+  stroke: #e6e9ef;
   stroke-width: 1;
 }
 
@@ -330,11 +330,11 @@ h1 {
   stroke: var(--accent);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3;
+  stroke-width: 2.6;
 }
 
 .priceChartPoint {
-  fill: var(--warning);
+  fill: var(--accent);
   stroke: var(--surface);
   stroke-width: 2;
 }
@@ -378,8 +378,8 @@ button {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 10px 14px;
-  background: var(--accent);
-  color: #03111d;
+  background: var(--text);
+  color: #ffffff;
   font-weight: 800;
   transition:
     background 0.15s ease,
@@ -389,7 +389,7 @@ button {
 }
 
 button:hover {
-  background: #7dd3fc;
+  background: #2f343b;
 }
 
 button:disabled {
@@ -398,8 +398,8 @@ button:disabled {
 }
 
 .primaryButton {
-  background: var(--accent);
-  color: #03111d;
+  background: var(--text);
+  color: #ffffff;
 }
 
 .secondaryButton,
@@ -411,20 +411,20 @@ button:disabled {
 
 .secondaryButton:hover,
 .subtleButton:hover {
-  border-color: var(--accent);
+  border-color: var(--text);
   background: var(--accent-soft);
   color: var(--text);
 }
 
 .dangerButton {
-  border-color: rgba(248, 113, 113, 0.28);
+  border-color: #f3b7b0;
   background: var(--negative-bg);
   color: var(--negative);
 }
 
 .dangerButton:hover {
-  border-color: rgba(248, 113, 113, 0.55);
-  background: rgba(239, 68, 68, 0.2);
+  border-color: #df8e86;
+  background: #ffe4e2;
 }
 
 .tickerForm {
@@ -454,12 +454,12 @@ select {
 
 input:focus,
 select:focus {
-  border-color: var(--accent);
+  border-color: var(--text);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 input::placeholder {
-  color: #68778c;
+  color: #98a1ad;
 }
 
 .tableWrapper {
@@ -521,7 +521,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(148, 163, 184, 0.06);
+  background: #f8fafc;
 }
 
 th {
@@ -538,11 +538,11 @@ td {
 }
 
 .table-row-active {
-  background: rgba(56, 189, 248, 0.08);
+  background: #f0f3f6;
 }
 
 .table-row-active td {
-  border-bottom-color: rgba(56, 189, 248, 0.24);
+  border-bottom-color: #d5dbe3;
 }
 
 .ticker {
@@ -562,11 +562,11 @@ td {
 
 .tickerButton:hover {
   background: transparent;
-  color: #7dd3fc;
+  color: var(--text);
 }
 
 .tickerButton.active {
-  color: var(--warning);
+  color: var(--text);
 }
 
 .rowActions {
@@ -623,7 +623,7 @@ td {
   max-height: 480px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+  scrollbar-color: #c7ced8 transparent;
   scrollbar-width: thin;
 }
 
@@ -635,7 +635,7 @@ td {
 .watchlistCard .watchlistListWrapper::-webkit-scrollbar-thumb,
 .universeList::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.34);
+  background: #c7ced8;
 }
 
 .watchlistCard .watchlistListWrapper::-webkit-scrollbar-track,
@@ -724,7 +724,7 @@ td {
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 4px;
-  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+  scrollbar-color: #c7ced8 transparent;
   scrollbar-width: thin;
 }
 
@@ -736,7 +736,7 @@ td {
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(20, 31, 47, 0.55);
+  background: #fafbfc;
 }
 
 .universeInfo {
@@ -785,12 +785,12 @@ td {
 }
 
 .universeAddButton:hover {
-  border-color: var(--accent);
-  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--text);
+  background: #eef1f4;
 }
 
 .universeAddedState {
-  border-color: rgba(134, 239, 172, 0.24);
+  border-color: #b8dec8;
   background: var(--positive-bg);
   color: var(--positive);
 }
@@ -798,7 +798,7 @@ td {
 .statusBadge {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(134, 239, 172, 0.24);
+  border: 1px solid #b8dec8;
   border-radius: 999px;
   padding: 5px 9px;
   background: var(--positive-bg);
@@ -826,15 +826,15 @@ td {
 }
 
 .error {
-  border: 1px solid rgba(248, 113, 113, 0.34);
-  background: rgba(127, 29, 29, 0.32);
-  color: #fecaca;
+  border: 1px solid #f3b7b0;
+  background: var(--negative-bg);
+  color: var(--negative);
 }
 
 .success {
-  border: 1px solid rgba(134, 239, 172, 0.26);
-  background: rgba(20, 83, 45, 0.26);
-  color: #bbf7d0;
+  border: 1px solid #b8dec8;
+  background: var(--positive-bg);
+  color: var(--positive);
 }
 
 .error p,
@@ -845,7 +845,7 @@ td {
 
 .emptyState {
   border: 1px dashed var(--border-strong);
-  background: rgba(15, 23, 42, 0.58);
+  background: #fafbfc;
   color: var(--muted);
 }
 
@@ -890,7 +890,7 @@ td {
 .eventTicker {
   display: inline-flex;
   margin-bottom: 7px;
-  color: var(--accent);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -999,7 +999,7 @@ td {
   padding: 10px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(20, 31, 47, 0.44);
+  background: #fafbfc;
   min-width: 0;
   max-width: 100%;
 }
@@ -1007,7 +1007,7 @@ td {
 .hypothesisPreview span {
   display: block;
   margin-bottom: 7px;
-  color: var(--accent);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -1064,7 +1064,7 @@ td {
 }
 
 .hypothesisTextarea:focus {
-  border-color: var(--accent);
+  border-color: var(--text);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
@@ -1090,9 +1090,9 @@ td {
 }
 
 .tickerChip.active {
-  border-color: rgba(56, 189, 248, 0.42);
-  background: rgba(56, 189, 248, 0.12);
-  color: var(--accent);
+  border-color: var(--text);
+  background: var(--text);
+  color: #ffffff;
 }
 
 .hypothesisControlGroup {
@@ -1128,16 +1128,16 @@ td {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(20, 31, 47, 0.62);
+  background: var(--surface-soft);
   color: var(--muted-strong);
   font-size: 13px;
   font-weight: 900;
 }
 
 .horizonPill.active {
-  border-color: rgba(56, 189, 248, 0.42);
-  background: rgba(56, 189, 248, 0.12);
-  color: var(--accent);
+  border-color: var(--text);
+  background: var(--text);
+  color: #ffffff;
 }
 
 .inlineWarning {
@@ -1155,7 +1155,7 @@ td {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(20, 31, 47, 0.55);
+  background: var(--surface-soft);
   color: var(--muted-strong);
   font-size: 14px;
   font-weight: 700;
@@ -1185,7 +1185,7 @@ td {
   margin-left: auto;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: rgba(8, 13, 22, 0.72);
+  background: #e6e9ef;
   transition: border-color 0.16s ease, background 0.16s ease;
 }
 
@@ -1202,13 +1202,13 @@ td {
 }
 
 .hypothesisToggle input:checked + .toggleSwitch {
-  border-color: rgba(56, 189, 248, 0.42);
-  background: rgba(56, 189, 248, 0.16);
+  border-color: var(--text);
+  background: #d9dde4;
 }
 
 .hypothesisToggle input:checked + .toggleSwitch::after {
   transform: translateX(18px);
-  background: var(--accent);
+  background: var(--text);
 }
 
 .hypothesisActions {
@@ -1239,9 +1239,7 @@ td {
 
 .assessmentCard {
   padding: 22px;
-  background:
-    linear-gradient(135deg, rgba(56, 189, 248, 0.12), transparent 46%),
-    var(--surface);
+  background: var(--surface);
 }
 
 .assessmentCard h3 {
@@ -1273,40 +1271,40 @@ td {
 }
 
 .assessmentBadge.supports {
-  border-color: rgba(134, 239, 172, 0.28);
+  border-color: #b8dec8;
   background: var(--positive-bg);
   color: var(--positive);
 }
 
 .assessmentBadge.positive {
-  border-color: rgba(134, 239, 172, 0.28);
+  border-color: #b8dec8;
   background: var(--positive-bg);
   color: var(--positive);
 }
 
 .assessmentBadge.contradicts {
-  border-color: rgba(248, 113, 113, 0.32);
+  border-color: #f3b7b0;
   background: var(--negative-bg);
   color: var(--negative);
 }
 
 .assessmentBadge.negative {
-  border-color: rgba(248, 113, 113, 0.32);
+  border-color: #f3b7b0;
   background: var(--negative-bg);
   color: var(--negative);
 }
 
 .assessmentBadge.mixed_support {
-  border-color: rgba(250, 204, 21, 0.3);
-  background: rgba(250, 204, 21, 0.1);
+  border-color: #f1d18a;
+  background: var(--warning-bg);
   color: var(--warning);
 }
 
 .assessmentBadge.mixed,
 .assessmentBadge.neutral,
 .assessmentBadge.insufficient_data {
-  border-color: rgba(250, 204, 21, 0.3);
-  background: rgba(250, 204, 21, 0.1);
+  border-color: #f1d18a;
+  background: var(--warning-bg);
   color: var(--warning);
 }
 
@@ -1315,7 +1313,7 @@ td {
 }
 
 .secondaryResultBlock {
-  background: rgba(15, 23, 36, 0.72);
+  background: #fafbfc;
 }
 
 .resultBlockHeader {
@@ -1369,7 +1367,7 @@ td {
   padding: 11px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(20, 31, 47, 0.55);
+  background: #fafbfc;
 }
 
 .resultMetric span,
@@ -1488,7 +1486,7 @@ td {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 9px;
-  background: rgba(20, 31, 47, 0.58);
+  background: #fafbfc;
   color: var(--muted-strong);
   font-size: 14px;
   font-weight: 800;
@@ -1582,7 +1580,7 @@ td {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(20, 31, 47, 0.55);
+  background: #fafbfc;
 }
 
 .eventDetailsList strong {

@@ -201,7 +201,7 @@ function MarketLineChart({ candles, interval }) {
     return { x, y, value };
   });
 
-  const linePoints = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+  const linePath = buildSmoothPath(coordinates);
   const yTicks = buildYTicks(axisMin, axisMax);
   const xTicks = buildXTicks(candles);
   const firstPoint = coordinates[0];
@@ -256,7 +256,7 @@ function MarketLineChart({ candles, interval }) {
         })}
 
         {coordinates.length > 1 ? (
-          <polyline className="priceChartLine" points={linePoints} />
+          <path className="priceChartLine" d={linePath} />
         ) : (
           <circle
             className="priceChartPoint"
@@ -266,19 +266,33 @@ function MarketLineChart({ candles, interval }) {
           />
         )}
 
-        {coordinates.length > 1 &&
-          coordinates.map((point) => (
-            <circle
-              className="priceChartPoint"
-              key={`${point.x}-${point.y}`}
-              cx={point.x}
-              cy={point.y}
-              r="2.5"
-            />
-          ))}
       </svg>
     </div>
   );
+}
+
+function buildSmoothPath(points) {
+  if (points.length === 0) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    return `M ${points[0].x} ${points[0].y}`;
+  }
+
+  const commands = [`M ${points[0].x} ${points[0].y}`];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previousPoint = points[index - 1];
+    const point = points[index];
+    const controlX = (previousPoint.x + point.x) / 2;
+
+    commands.push(
+      `C ${controlX} ${previousPoint.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`
+    );
+  }
+
+  return commands.join(" ");
 }
 
 function getCandleStats(candles) {

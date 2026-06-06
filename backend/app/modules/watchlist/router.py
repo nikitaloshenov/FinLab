@@ -22,6 +22,7 @@ from app.modules.watchlist.service import (
     remove_ticker_from_watchlist,
 )
 from app.shared.errors import raise_api_error
+from app.shared.session import get_demo_session_id
 
 
 router = APIRouter(
@@ -31,19 +32,24 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[WatchlistItemRead])
-def get_watchlist(db: Session = Depends(get_db)):
-    return list_watchlist_items(db)
+def get_watchlist(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
+):
+    return list_watchlist_items(db, session_id=session_id)
 
 
 @router.post("/items", response_model=WatchlistItemRead)
 def add_watchlist_item(
     item_data: WatchlistItemCreate,
     db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
 ):
     try:
         return add_ticker_to_watchlist(
             db=db,
             secid=item_data.secid,
+            session_id=session_id,
         )
     except MoexTickerNotFoundError as error:
         raise_api_error(
@@ -72,19 +78,24 @@ def add_watchlist_item(
 
 
 @router.post("/refresh-prices", response_model=WatchlistRefreshResult)
-def refresh_watchlist_item_prices(db: Session = Depends(get_db)):
-    return refresh_watchlist_prices(db)
+def refresh_watchlist_item_prices(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
+):
+    return refresh_watchlist_prices(db, session_id=session_id)
 
 
 @router.delete("/items/{secid}", response_model=WatchlistDeleteResult)
 def delete_watchlist_item_by_secid(
     secid: str,
     db: Session = Depends(get_db),
+    session_id: str = Depends(get_demo_session_id),
 ):
     try:
         return remove_ticker_from_watchlist(
             db=db,
             secid=secid,
+            session_id=session_id,
         )
     except WatchlistItemNotFoundError as error:
         raise_api_error(

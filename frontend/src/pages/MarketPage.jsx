@@ -28,12 +28,22 @@ import {
   buildAlertBatchCheckMessage,
   buildWatchlistRefreshMessage,
 } from "../shared/lib/batchMessages.js";
+import { isNetworkApiError } from "../shared/api/client.js";
 
 const FOOTER_CONTACTS = {
   githubUrl: "https://github.com/nikitaloshenov/FinLab",
   telegramUrl: "https://t.me/JIRNIYDIZAINER",
   telegramHandle: "@JIRNIYDIZAINER",
 };
+
+const STARTUP_RETRY_ATTEMPTS = 8;
+const STARTUP_RETRY_DELAY_MS = 1250;
+
+function wait(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
 
 export function MarketPage() {
   const [watchlist, setWatchlist] = useState([]);
@@ -64,6 +74,7 @@ export function MarketPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [candlesErrorMessage, setCandlesErrorMessage] = useState("");
+  const [apiStartupStatus, setApiStartupStatus] = useState("idle");
 
   async function loadWatchlist({ showLoader = true } = {}) {
     try {
@@ -125,29 +136,54 @@ export function MarketPage() {
     }
   }
 
-  async function loadPageData() {
+  async function loadPageData({ retryStartup = true } = {}) {
+    setIsLoading(true);
+    setErrorMessage("");
+    setApiStartupStatus("idle");
+
     try {
-      setIsLoading(true);
-      setErrorMessage("");
+      const attempts = retryStartup ? STARTUP_RETRY_ATTEMPTS : 1;
 
-      const [watchlistData, alertsData, alertEventsData] = await Promise.all([
-        getWatchlist(),
-        getAlerts(),
-        getAlertEvents(),
-      ]);
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          const [watchlistData, alertsData, alertEventsData] = await Promise.all([
+            getWatchlist(),
+            getAlerts(),
+            getAlertEvents(),
+          ]);
 
-      setWatchlist(watchlistData);
-      setAlerts(alertsData);
-      setAlertEvents(alertEventsData);
+          setWatchlist(watchlistData);
+          setAlerts(alertsData);
+          setAlertEvents(alertEventsData);
+          setApiStartupStatus("idle");
 
-      const initialTicker = selectedTicker || watchlistData[0]?.secid || "";
+          const initialTicker = selectedTicker || watchlistData[0]?.secid || "";
 
-      if (initialTicker) {
-        setSelectedTicker(initialTicker);
-        await loadTickerCandles(initialTicker, candleInterval, candleLimit);
+          if (initialTicker) {
+            setSelectedTicker(initialTicker);
+            await loadTickerCandles(initialTicker, candleInterval, candleLimit);
+          }
+
+          return;
+        } catch (error) {
+          const canRetry =
+            retryStartup && isNetworkApiError(error) && attempt < attempts;
+
+          if (!canRetry) {
+            if (retryStartup && isNetworkApiError(error)) {
+              setApiStartupStatus("failed");
+            } else {
+              setApiStartupStatus("idle");
+              setErrorMessage(error.message);
+            }
+
+            return;
+          }
+
+          setApiStartupStatus("connecting");
+          await wait(STARTUP_RETRY_DELAY_MS);
+        }
       }
-    } catch (error) {
-      setErrorMessage(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -489,6 +525,30 @@ export function MarketPage() {
       </section>
 
       <div className="messages">
+        {apiStartupStatus === "connecting" && !errorMessage && (
+          <div className="info pageMessage startupMessage">
+            <strong>Сервер запускается. Подключаемся к API...</strong>
+            <p>Обычно это занимает несколько секунд после запуска Docker.</p>
+          </div>
+        )}
+
+        {apiStartupStatus === "failed" && !errorMessage && (
+          <div className="error pageMessage startupMessage">
+            <strong>Не удалось подключиться к API. Проверь, что backend запущен.</strong>
+            <p>
+              Если backend только стартует, попробуй повторить подключение через
+              несколько секунд.
+            </p>
+            <button
+              className="secondaryButton startupRetryButton"
+              type="button"
+              onClick={() => loadPageData({ retryStartup: true })}
+            >
+              Повторить
+            </button>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="error pageMessage">
             <strong>Ошибка</strong>
@@ -496,7 +556,7 @@ export function MarketPage() {
           </div>
         )}
 
-        {infoMessage && !errorMessage && (
+        {infoMessage && !errorMessage && apiStartupStatus === "idle" && (
           <div className="success pageMessage">
             <strong>Готово</strong>
             <p>{infoMessage}</p>
@@ -580,6 +640,9 @@ export function MarketPage() {
         <div className="footerBrand">
           <strong>FinLab</strong>
           <p>Исторический анализ рынка. Не является инвестиционной рекомендацией.</p>
+          <p className="footerSessionHint">
+            Данные списка наблюдения и алертов привязаны к текущему браузеру.
+          </p>
         </div>
         <div className="footerContacts">
           <a

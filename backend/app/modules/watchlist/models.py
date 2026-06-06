@@ -13,9 +13,9 @@ class WatchlistItem(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_key",
+            "session_id",
             "ticker_id",
-            name="uq_watchlist_user_ticker",
+            name="uq_watchlist_session_ticker",
         ),
     )
 
@@ -24,6 +24,13 @@ class WatchlistItem(Base):
     user_key: Mapped[str] = mapped_column(
         String(64),
         default="default",
+        index=True,
+        nullable=False,
+    )
+
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        default="legacy-demo-session",
         index=True,
         nullable=False,
     )

@@ -27,11 +27,15 @@ class WatchlistTickerCreateError(Exception):
     pass
 
 
-def list_watchlist_items(db: Session) -> list[dict[str, Any]]:
-    return get_watchlist_items(db)
+def list_watchlist_items(db: Session, session_id: str) -> list[dict[str, Any]]:
+    return get_watchlist_items(db, session_id=session_id)
 
 
-def add_ticker_to_watchlist(db: Session, secid: str) -> dict[str, Any]:
+def add_ticker_to_watchlist(
+    db: Session,
+    secid: str,
+    session_id: str,
+) -> dict[str, Any]:
     normalized_secid = secid.upper().strip()
 
     ticker = get_ticker_by_secid(db, normalized_secid)
@@ -48,6 +52,7 @@ def add_ticker_to_watchlist(db: Session, secid: str) -> dict[str, Any]:
     existing_item = get_watchlist_item_by_ticker_id(
         db=db,
         ticker_id=ticker.id,
+        session_id=session_id,
     )
 
     if existing_item is not None:
@@ -56,6 +61,7 @@ def add_ticker_to_watchlist(db: Session, secid: str) -> dict[str, Any]:
     create_watchlist_item(
         db=db,
         ticker=ticker,
+        session_id=session_id,
     )
 
     db.commit()
@@ -63,6 +69,7 @@ def add_ticker_to_watchlist(db: Session, secid: str) -> dict[str, Any]:
     created_item = get_watchlist_item_by_secid(
         db=db,
         secid=normalized_secid,
+        session_id=session_id,
     )
 
     if created_item is None:
@@ -73,12 +80,17 @@ def add_ticker_to_watchlist(db: Session, secid: str) -> dict[str, Any]:
     return watchlist_item_to_dict(created_item)
 
 
-def remove_ticker_from_watchlist(db: Session, secid: str) -> dict[str, Any]:
+def remove_ticker_from_watchlist(
+    db: Session,
+    secid: str,
+    session_id: str,
+) -> dict[str, Any]:
     normalized_secid = secid.upper().strip()
 
     item = get_watchlist_item_by_secid(
         db=db,
         secid=normalized_secid,
+        session_id=session_id,
     )
 
     if item is None:
@@ -99,8 +111,8 @@ def remove_ticker_from_watchlist(db: Session, secid: str) -> dict[str, Any]:
     }
 
 
-def refresh_watchlist_prices(db: Session) -> dict[str, Any]:
-    watchlist_items = get_watchlist_items(db)
+def refresh_watchlist_prices(db: Session, session_id: str) -> dict[str, Any]:
+    watchlist_items = get_watchlist_items(db, session_id=session_id)
 
     logger.info("Refreshing watchlist prices: total=%s", len(watchlist_items))
 

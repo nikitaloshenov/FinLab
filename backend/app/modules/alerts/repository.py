@@ -39,10 +39,11 @@ def alert_event_to_dict(event: AlertEvent) -> dict[str, Any]:
     }
 
 
-def get_alerts(db: Session) -> list[dict[str, Any]]:
+def get_alerts(db: Session, session_id: str) -> list[dict[str, Any]]:
     alerts = (
         db.query(Alert)
         .options(joinedload(Alert.ticker))
+        .filter(Alert.session_id == session_id)
         .filter(Alert.is_deleted.is_(False))
         .order_by(Alert.created_at.desc())
         .all()
@@ -51,10 +52,11 @@ def get_alerts(db: Session) -> list[dict[str, Any]]:
     return [alert_to_dict(alert) for alert in alerts]
 
 
-def get_active_alerts(db: Session) -> list[Alert]:
+def get_active_alerts(db: Session, session_id: str) -> list[Alert]:
     return (
         db.query(Alert)
         .options(joinedload(Alert.ticker))
+        .filter(Alert.session_id == session_id)
         .filter(Alert.is_active.is_(True))
         .filter(Alert.is_deleted.is_(False))
         .order_by(Alert.created_at.asc())
@@ -65,11 +67,13 @@ def get_active_alerts(db: Session) -> list[Alert]:
 def get_alert_by_id(
     db: Session,
     alert_id: int,
+    session_id: str,
 ) -> Alert | None:
     return (
         db.query(Alert)
         .options(joinedload(Alert.ticker))
         .filter(Alert.id == alert_id)
+        .filter(Alert.session_id == session_id)
         .filter(Alert.is_deleted.is_(False))
         .first()
     )
@@ -80,8 +84,10 @@ def create_alert(
     ticker: Ticker,
     condition: str,
     target_price: Decimal,
+    session_id: str,
 ) -> Alert:
     alert = Alert(
+        session_id=session_id,
         ticker_id=ticker.id,
         condition=condition,
         target_price=target_price,
@@ -134,6 +140,7 @@ def create_alert_event(
     message: str,
 ) -> AlertEvent:
     event = AlertEvent(
+        session_id=alert.session_id,
         alert_id=alert.id,
         ticker_id=alert.ticker_id,
         price=current_price,
@@ -148,10 +155,11 @@ def create_alert_event(
     return event
 
 
-def get_alert_events(db: Session) -> list[dict[str, Any]]:
+def get_alert_events(db: Session, session_id: str) -> list[dict[str, Any]]:
     events = (
         db.query(AlertEvent)
         .options(joinedload(AlertEvent.ticker))
+        .filter(AlertEvent.session_id == session_id)
         .order_by(AlertEvent.created_at.desc())
         .all()
     )

@@ -25,14 +25,14 @@ def watchlist_item_to_dict(item: WatchlistItem) -> dict[str, Any]:
 
 def get_watchlist_items(
     db: Session,
-    user_key: str = "default",
+    session_id: str,
 ) -> list[dict[str, Any]]:
     items = (
         db.query(WatchlistItem)
         .options(
             joinedload(WatchlistItem.ticker).joinedload(Ticker.latest_price)
         )
-        .filter(WatchlistItem.user_key == user_key)
+        .filter(WatchlistItem.session_id == session_id)
         .order_by(WatchlistItem.created_at.desc())
         .all()
     )
@@ -43,7 +43,7 @@ def get_watchlist_items(
 def get_watchlist_item_by_ticker_id(
     db: Session,
     ticker_id: int,
-    user_key: str = "default",
+    session_id: str,
 ) -> WatchlistItem | None:
     return (
         db.query(WatchlistItem)
@@ -51,7 +51,7 @@ def get_watchlist_item_by_ticker_id(
             joinedload(WatchlistItem.ticker).joinedload(Ticker.latest_price)
         )
         .filter(
-            WatchlistItem.user_key == user_key,
+            WatchlistItem.session_id == session_id,
             WatchlistItem.ticker_id == ticker_id,
         )
         .first()
@@ -61,7 +61,7 @@ def get_watchlist_item_by_ticker_id(
 def get_watchlist_item_by_secid(
     db: Session,
     secid: str,
-    user_key: str = "default",
+    session_id: str,
 ) -> WatchlistItem | None:
     normalized_secid = secid.upper().strip()
 
@@ -72,7 +72,7 @@ def get_watchlist_item_by_secid(
             joinedload(WatchlistItem.ticker).joinedload(Ticker.latest_price)
         )
         .filter(
-            WatchlistItem.user_key == user_key,
+            WatchlistItem.session_id == session_id,
             Ticker.secid == normalized_secid,
         )
         .first()
@@ -82,10 +82,11 @@ def get_watchlist_item_by_secid(
 def create_watchlist_item(
     db: Session,
     ticker: Ticker,
-    user_key: str = "default",
+    session_id: str,
 ) -> WatchlistItem:
     item = WatchlistItem(
-        user_key=user_key,
+        user_key=session_id,
+        session_id=session_id,
         ticker_id=ticker.id,
     )
 

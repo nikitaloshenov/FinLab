@@ -5,6 +5,12 @@ from app.modules.alerts import router as alerts_router
 from app.modules.alerts.service import AlertLatestPriceNotFoundError, AlertNotFoundError
 
 
+SESSION_ID = "11111111-1111-4111-8111-111111111111"
+OTHER_SESSION_ID = "22222222-2222-4222-8222-222222222222"
+SESSION_HEADERS = {"X-FinLab-Session-Id": SESSION_ID}
+OTHER_SESSION_HEADERS = {"X-FinLab-Session-Id": OTHER_SESSION_ID}
+
+
 def make_alert(alert_id=1):
     now = datetime.now(UTC)
 
@@ -25,10 +31,10 @@ def test_get_alerts_returns_list(client, monkeypatch):
     monkeypatch.setattr(
         alerts_router,
         "list_alerts",
-        lambda db: [make_alert()],
+        lambda db, session_id: [make_alert()],
     )
 
-    response = client.get("/api/v1/alerts")
+    response = client.get("/api/v1/alerts", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
 
@@ -43,10 +49,10 @@ def test_get_alerts_does_not_return_deleted_alerts(client, monkeypatch):
     monkeypatch.setattr(
         alerts_router,
         "list_alerts",
-        lambda db: [make_alert(alert_id=1)],
+        lambda db, session_id: [make_alert(alert_id=1)],
     )
 
-    response = client.get("/api/v1/alerts")
+    response = client.get("/api/v1/alerts", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
 
@@ -57,7 +63,8 @@ def test_get_alerts_does_not_return_deleted_alerts(client, monkeypatch):
 
 
 def test_create_alert_returns_created_alert(client, monkeypatch):
-    def fake_create_price_alert(db, secid, condition, target_price):
+    def fake_create_price_alert(db, secid, condition, target_price, session_id):
+        assert session_id == SESSION_ID
         alert = make_alert()
         alert["secid"] = secid.upper()
         alert["condition"] = condition
@@ -73,6 +80,7 @@ def test_create_alert_returns_created_alert(client, monkeypatch):
     response = client.post(
         "/api/v1/alerts",
         json={"secid": "SBER", "condition": "above", "target_price": 300},
+        headers=SESSION_HEADERS,
     )
 
     assert response.status_code == 200
@@ -87,6 +95,7 @@ def test_create_alert_rejects_invalid_condition(client):
     response = client.post(
         "/api/v1/alerts",
         json={"secid": "SBER", "condition": "invalid", "target_price": 300},
+        headers=SESSION_HEADERS,
     )
 
     assert response.status_code == 422
@@ -96,6 +105,7 @@ def test_create_alert_rejects_negative_target_price(client):
     response = client.post(
         "/api/v1/alerts",
         json={"secid": "SBER", "condition": "above", "target_price": -1},
+        headers=SESSION_HEADERS,
     )
 
     assert response.status_code == 422
@@ -105,7 +115,7 @@ def test_check_alert_returns_check_result(client, monkeypatch):
     monkeypatch.setattr(
         alerts_router,
         "check_price_alert",
-        lambda db, alert_id: {
+        lambda db, alert_id, session_id: {
             "alert_id": alert_id,
             "secid": "SBER",
             "condition": "above",
@@ -117,7 +127,7 @@ def test_check_alert_returns_check_result(client, monkeypatch):
         },
     )
 
-    response = client.post("/api/v1/alerts/1/check")
+    response = client.post("/api/v1/alerts/1/check", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
 
@@ -129,12 +139,12 @@ def test_check_alert_returns_check_result(client, monkeypatch):
 
 
 def test_check_alert_not_found_returns_api_error(client, monkeypatch):
-    def fake_check_price_alert(db, alert_id):
+    def fake_check_price_alert(db, alert_id, session_id):
         raise AlertNotFoundError(f"Alert {alert_id} not found")
 
     monkeypatch.setattr(alerts_router, "check_price_alert", fake_check_price_alert)
 
-    response = client.post("/api/v1/alerts/999/check")
+    response = client.post("/api/v1/alerts/999/check", headers=SESSION_HEADERS)
 
     assert response.status_code == 404
 
@@ -146,12 +156,12 @@ def test_check_alert_not_found_returns_api_error(client, monkeypatch):
 
 
 def test_check_alert_latest_price_not_found_returns_api_error(client, monkeypatch):
-    def fake_check_price_alert(db, alert_id):
+    def fake_check_price_alert(db, alert_id, session_id):
         raise AlertLatestPriceNotFoundError(f"Latest price for alert {alert_id} not found")
 
     monkeypatch.setattr(alerts_router, "check_price_alert", fake_check_price_alert)
 
-    response = client.post("/api/v1/alerts/1/check")
+    response = client.post("/api/v1/alerts/1/check", headers=SESSION_HEADERS)
 
     assert response.status_code == 404
 
@@ -166,7 +176,7 @@ def test_check_active_alerts_returns_batch_summary(client, monkeypatch):
     monkeypatch.setattr(
         alerts_router,
         "check_active_price_alerts",
-        lambda db: {
+        lambda db, session_id: {
             "total": 2,
             "checked": 1,
             "triggered": 1,
@@ -200,7 +210,7 @@ def test_check_active_alerts_returns_batch_summary(client, monkeypatch):
         },
     )
 
-    response = client.post("/api/v1/alerts/check-active")
+    response = client.post("/api/v1/alerts/check-active", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
 
@@ -217,7 +227,7 @@ def test_check_active_alerts_does_not_include_deleted_alerts(client, monkeypatch
     monkeypatch.setattr(
         alerts_router,
         "check_active_price_alerts",
-        lambda db: {
+        lambda db, session_id: {
             "total": 1,
             "checked": 1,
             "triggered": 0,
@@ -239,7 +249,7 @@ def test_check_active_alerts_does_not_include_deleted_alerts(client, monkeypatch
         },
     )
 
-    response = client.post("/api/v1/alerts/check-active")
+    response = client.post("/api/v1/alerts/check-active", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
 
@@ -254,10 +264,10 @@ def test_delete_alert_returns_delete_result(client, monkeypatch):
     monkeypatch.setattr(
         alerts_router,
         "remove_price_alert",
-        lambda db, alert_id: {"id": alert_id, "deleted": True},
+        lambda db, alert_id, session_id: {"id": alert_id, "deleted": True},
     )
 
-    response = client.delete("/api/v1/alerts/1")
+    response = client.delete("/api/v1/alerts/1", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
     assert response.json() == {"id": 1, "deleted": True}
@@ -269,7 +279,7 @@ def test_get_alert_events_returns_list(client, monkeypatch):
     monkeypatch.setattr(
         alerts_router,
         "list_alert_events",
-        lambda db: [
+        lambda db, session_id: [
             {
                 "id": 1,
                 "alert_id": 1,
@@ -283,7 +293,7 @@ def test_get_alert_events_returns_list(client, monkeypatch):
         ],
     )
 
-    response = client.get("/api/v1/alerts/events")
+    response = client.get("/api/v1/alerts/events", headers=SESSION_HEADERS)
 
     assert response.status_code == 200
 
@@ -292,3 +302,35 @@ def test_get_alert_events_returns_list(client, monkeypatch):
     assert isinstance(data, list)
     assert data[0]["alert_id"] == 1
     assert data[0]["secid"] == "SBER"
+
+
+def test_alerts_require_session_header(client):
+    response = client.get("/api/v1/alerts")
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "demo_session_required"
+
+
+def test_alerts_reject_invalid_session_header(client):
+    response = client.get(
+        "/api/v1/alerts",
+        headers={"X-FinLab-Session-Id": "not-a-uuid"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "demo_session_invalid"
+
+
+def test_alerts_session_id_is_forwarded_to_service(client, monkeypatch):
+    seen_sessions = []
+
+    def fake_list_alerts(db, session_id):
+        seen_sessions.append(session_id)
+        return []
+
+    monkeypatch.setattr(alerts_router, "list_alerts", fake_list_alerts)
+
+    client.get("/api/v1/alerts", headers=SESSION_HEADERS)
+    client.get("/api/v1/alerts", headers=OTHER_SESSION_HEADERS)
+
+    assert seen_sessions == [SESSION_ID, OTHER_SESSION_ID]

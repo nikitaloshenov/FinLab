@@ -1,0 +1,1325 @@
+# FinLab v2 Database Specification
+
+Документ описывает целевую архитектуру базы данных FinLab v2.
+
+Это не миграция и не финальный SQL-дизайн. Цель документа — зафиксировать направление развития БД перед проектированием Alembic migrations, SQLAlchemy models и новой версии аналитического слоя.
+
+## 1. Цель БД v2
+
+FinLab v2 должен перестать быть просто dashboard вокруг тикеров и стать backend/product платформой для historical event-study анализа российского фондового рынка.
+
+Целевая логика:
+
+```text
+событие -> рынок -> сектор -> акция -> историческая реакция -> сравнение с benchmark
+```
+
+База данных должна поддерживать:
+
+- нормализованный справочник эмитентов, инструментов, секторов и benchmarks;
+- хранение исторических свечей как аналитического market data layer;
+- хранение событий разных типов, а не только решений по ключевой ставке;
+- воспроизводимые study runs;
+- сохранение event-level и horizon-level результатов анализа;
+- будущие аналитические модули: инфляция, валютные шоки, нефть, дивидендные гэпы;
+- будущий слой операционных, секторных и финансовых метрик компаний.
+
+Главная идея v2: аналитика не должна каждый раз зависеть только от live-запросов к MOEX. Важные рыночные данные и результаты исследования должны быть воспроизводимы.
+
+## 2. Главные принципы проектирования
+
+1. Не сносить БД при изменениях.
+
+   Все изменения должны идти через маленькие Alembic migrations. Старые таблицы нельзя удалять сразу, если от них зависит live demo.
+
+2. Разделять типы данных.
+
+   В БД должны быть разные слои:
+
+   - user/demo data;
+   - reference data;
+   - market data;
+   - event data;
+   - study data;
+   - future metrics data.
+
+3. Не привязывать аналитику только к key rate.
+
+   Key Rate Impact Analyzer должен стать первым use case поверх общего event-study слоя, а не единственным форматом данных.
+
+4. Разделять issuer и instrument.
+
+   Компания и торгуемый инструмент — разные сущности. Это важно для SBER/SBERP, облигаций, индексов, депозитарных расписок и будущих метрик.
+
+5. Не хранить секторные метрики отдельными колонками под каждый сектор.
+
+   Метрики должны быть описаны через catalog/observations, иначе БД быстро станет негибкой.
+
+6. Хранить source provenance.
+
+   Для данных MOEX, решений ЦБ, импортированных CSV и будущих источников нужно знать источник, дату загрузки и, по возможности, checksum.
+
+7. Не ломать live demo большим refactor.
+
+   Новые таблицы должны добавляться параллельно, а существующие watchlist/alerts/key rate API переводиться постепенно.
+
+## 3. Слои данных
+
+### A. User / Demo Layer
+
+Назначение: хранить пользовательское состояние demo-приложения.
+
+Текущие сущности:
+
+- demo sessions;
+- watchlist items;
+- alerts;
+- alert events.
+
+В v2 этот слой можно оставить максимально простым. Он не должен смешиваться с market/reference/event data.
+
+### B. Reference Layer
+
+Назначение: описывать устойчивые справочники рынка.
+
+Сущности:
+
+- `issuers`;
+- `instruments`;
+- `sectors`;
+- `issuer_sector_history`;
+- `benchmarks`;
+- `data_sources`.
+
+Этот слой отвечает на вопросы:
+
+- какая компания стоит за тикером;
+- к какому сектору относится компания;
+- какой инструмент является акцией, индексом или benchmark;
+- из какого источника пришли данные.
+
+### C. Market Data Layer
+
+Назначение: хранить рыночные данные, нужные для анализа.
+
+Сущности:
+
+- `price_candles`;
+- `latest_prices`;
+- `ingestion_runs`.
+
+В текущем проекте latest price уже есть через `ticker_latest_prices`, а candles берутся из MOEX live. Для v2 daily candles должны стать сохраняемыми данными.
+
+### D. Event Layer
+
+Назначение: хранить события, вокруг которых строится event-study.
+
+Сущности:
+
+- `event_types`;
+- `events`;
+- `event_values`.
+
+Примеры событий:
+
+- решение ЦБ по ключевой ставке;
+- публикация инфляции;
+- валютный шок;
+- резкое движение нефти;
+- дивидендный гэп;
+- корпоративное событие.
+
+### E. Study Layer
+
+Назначение: хранить параметры и результаты аналитических запусков.
+
+Сущности:
+
+- `study_runs`;
+- `study_run_events`;
+- `study_event_results`;
+- `study_horizon_summary`.
+
+Этот слой нужен, чтобы результат анализа можно было воспроизвести, сравнить, показать в UI и протестировать.
+
+### F. Future Metrics Layer
+
+Назначение: будущая база для операционных, секторных и финансовых метрик.
+
+Сущности:
+
+- `reporting_periods`;
+- `metrics_catalog`;
+- `metric_observations`.
+
+Этот слой не обязателен для первой реализации v2. `reporting_periods`, `metrics_catalog` и `metric_observations` остаются future-ready частью спецификации, но их лучше не включать в первую обязательную миграцию, если нет времени и стабильных источников данных.
+
+## 4. Issuer vs Instrument
+
+Это одно из самых важных разделений в v2.
+
+`issuer` / company — это эмитент или компания.
+
+`instrument` — это конкретный торгуемый инструмент.
+
+Пример:
+
+- ПАО Сбербанк — issuer;
+- `SBER` — обыкновенная акция;
+- `SBERP` — привилегированная акция;
+- обе бумаги могут относиться к одному issuer.
+
+Почему это важно:
+
+- price candles относятся к instrument;
+- watchlist обычно хранит instrument;
+- alerts обычно работают по instrument;
+- операционные и финансовые метрики чаще относятся к issuer;
+- секторная принадлежность чаще относится к issuer, а не к отдельному ticker;
+- один issuer может иметь несколько instruments.
+
+Для v2 фиксируется основной вариант: использовать `issuer_sector_history`, а не `instrument_sector_history`.
+
+Причина: сектор обычно относится к компании/эмитенту, а не к конкретному тикеру. `SBER` и `SBERP` могут быть разными инструментами одного issuer, но сектор у них общий.
+
+Если позже появятся исключения, где конкретный instrument должен иметь отличную классификацию, можно добавить instrument-level sector override отдельной таблицей. В первую реализацию v2 это не входит.
+
+## 5. Описание таблиц
+
+### 5.1 `issuers`
+
+Назначение: справочник эмитентов/компаний.
+
+Ключевые поля:
+
+- `id`;
+- `name`;
+- `short_name`;
+- `country`;
+- `website nullable`;
+- `is_active`;
+- `created_at`;
+- `updated_at`.
+
+Связи:
+
+- one-to-many с `instruments`;
+- one-to-many с `issuer_sector_history`;
+- one-to-many с будущими `metric_observations`.
+
+Уникальные ограничения:
+
+- желательно unique по нормализованному `name` или внешнему issuer code, если такой источник будет добавлен.
+
+Индексы:
+
+- `ix_issuers_name`;
+- `ix_issuers_is_active`.
+
+Типы:
+
+- даты: timezone-aware `DateTime`;
+- `is_active`: boolean.
+
+### 5.2 `instruments`
+
+Назначение: справочник торгуемых инструментов.
+
+Ключевые поля:
+
+- `id`;
+- `issuer_id nullable`;
+- `secid`;
+- `name`;
+- `short_name`;
+- `asset_type`;
+- `board`;
+- `market`;
+- `engine`;
+- `currency`;
+- `lot_size nullable`;
+- `isin nullable`;
+- `is_active`;
+- `created_at`;
+- `updated_at`.
+
+Связи:
+
+- many-to-one к `issuers`;
+- one-to-many к `price_candles`;
+- one-to-many к `latest_prices`;
+- optional one-to-many к `benchmarks`.
+
+Уникальные ограничения:
+
+- unique `(engine, market, board, secid)`;
+- optional unique `isin`, если значение не null и надежно заполнено.
+
+Индексы:
+
+- `ix_instruments_secid`;
+- `ix_instruments_asset_type`;
+- `ix_instruments_issuer_id`;
+- `ix_instruments_is_active`.
+
+Типы:
+
+- `lot_size`: integer или Numeric, если понадобится дробность;
+- `currency`: string;
+- `asset_type`: string или enum-like check constraint.
+
+### 5.3 `sectors`
+
+Назначение: справочник секторов.
+
+Ключевые поля:
+
+- `id`;
+- `code`;
+- `name`;
+- `description nullable`;
+- `is_active`.
+
+Связи:
+
+- one-to-many с `issuer_sector_history`;
+- optional one-to-many с `benchmarks`;
+- optional one-to-many с future `metrics_catalog`.
+
+Уникальные ограничения:
+
+- unique `code`;
+- unique `name` желательно, но не обязательно.
+
+Индексы:
+
+- `ix_sectors_code`;
+- `ix_sectors_is_active`.
+
+### 5.4 `issuer_sector_history`
+
+Назначение: история секторной принадлежности issuer.
+
+Ключевые поля:
+
+- `id`;
+- `issuer_id`;
+- `sector_id`;
+- `valid_from`;
+- `valid_to nullable`;
+- `source_id nullable`.
+
+Связи:
+
+- many-to-one к `issuers`;
+- many-to-one к `sectors`;
+- many-to-one к `data_sources`.
+
+Уникальные ограничения:
+
+- желательно unique `(issuer_id, sector_id, valid_from)`;
+- желательно не допускать пересекающиеся интервалы для одного issuer на уровне бизнес-валидации.
+
+Индексы:
+
+- `ix_issuer_sector_history_issuer_valid`;
+- `ix_issuer_sector_history_sector_id`;
+- `ix_issuer_sector_history_valid_from`.
+
+Комментарий:
+
+Для MVP можно считать сектор текущим, но структура с history позволит не переделывать БД позже.
+
+### 5.5 `benchmarks`
+
+Назначение: описание market/sector/instrument benchmarks.
+
+Ключевые поля:
+
+- `id`;
+- `code`;
+- `name`;
+- `benchmark_type`;
+- `instrument_id nullable`;
+- `sector_id nullable`;
+- `description nullable`;
+- `is_active`.
+
+Связи:
+
+- optional many-to-one к `instruments`;
+- optional many-to-one к `sectors`.
+
+Уникальные ограничения:
+
+- unique `code`.
+
+Индексы:
+
+- `ix_benchmarks_type`;
+- `ix_benchmarks_instrument_id`;
+- `ix_benchmarks_sector_id`;
+- `ix_benchmarks_is_active`.
+
+Комментарий:
+
+`benchmark_type` может принимать значения:
+
+- `market`;
+- `sector`;
+- `instrument`;
+- `custom`.
+
+Для текущего проекта важно явно не путать `MOEX` как акцию Московской биржи и индексный benchmark рынка.
+
+Решение для v2: market index вроде IMOEX хранится как отдельный `instrument` с `asset_type = index`, а `benchmarks.instrument_id` ссылается на этот instrument. Это позволяет отличать:
+
+- `MOEX` — акция Московской биржи;
+- `IMOEX` — рыночный индекс / market benchmark.
+
+### 5.6 `data_sources`
+
+Назначение: provenance layer для данных.
+
+Ключевые поля:
+
+- `id`;
+- `code`;
+- `name`;
+- `source_type`;
+- `url nullable`;
+- `license_note nullable`;
+- `loaded_at nullable`;
+- `checksum nullable`.
+
+Связи:
+
+- может использоваться в `price_candles`;
+- `events`;
+- `issuer_sector_history`;
+- `metric_observations`;
+- `ingestion_runs`.
+
+Уникальные ограничения:
+
+- unique `code`;
+- optional unique `checksum` не нужен глобально, потому разные sources могут иметь одинаковые checksum.
+
+Индексы:
+
+- `ix_data_sources_code`;
+- `ix_data_sources_source_type`.
+
+Комментарий:
+
+`source_type` может быть:
+
+- `moex`;
+- `cbr`;
+- `manual_csv`;
+- `official_page`;
+- `computed`.
+
+### 5.7 `price_candles`
+
+Назначение: сохраненные OHLCV-свечи по instrument.
+
+Ключевые поля:
+
+- `id`;
+- `instrument_id`;
+- `interval`;
+- `begin_at`;
+- `trading_date`;
+- `open`;
+- `high`;
+- `low`;
+- `close`;
+- `volume`;
+- `value nullable`;
+- `source_id nullable`;
+- `ingestion_run_id nullable`;
+- `created_at`.
+
+Связи:
+
+- many-to-one к `instruments`;
+- optional many-to-one к `data_sources`;
+- optional many-to-one к `ingestion_runs`.
+
+Уникальные ограничения:
+
+- unique `(instrument_id, interval, begin_at)`.
+
+Важные индексы:
+
+- `ix_price_candles_instrument_interval_begin_at`;
+- `ix_price_candles_instrument_interval_trading_date`;
+- `ix_price_candles_begin_at`;
+- optional `ix_price_candles_interval_begin_at`.
+
+Почему нужен unique `(instrument_id, interval, begin_at)`:
+
+- MOEX pagination/chunking может вернуть пересекающиеся свечи;
+- повторный import не должен создавать дубли;
+- event-study должен иметь ровно одну свечу инструмента на интервал и дату/время;
+- upsert становится простым и безопасным.
+
+Типы:
+
+- `open`, `high`, `low`, `close`: `Numeric(18, 6)` или точнее;
+- `volume`: `Numeric(24, 6)` или `BigInteger`, если гарантированно целое;
+- `value`: `Numeric(24, 6)`;
+- `begin_at`: timezone-aware `DateTime`;
+- `trading_date`: `Date`.
+
+Комментарий:
+
+Для MVP v2 можно начать только с `interval='1d'`.
+
+Для daily candles `begin_at` можно нормализовать к началу торгового дня или к дате свечи в выбранной timezone. `trading_date` нужен отдельно, чтобы event-study мог удобно искать торговые дни: D+1, D+3, D+10, D+20.
+
+`source_id` отвечает на вопрос "откуда данные". `ingestion_run_id` отвечает на вопрос "какой конкретный импорт/загрузка принес эти строки".
+
+### 5.8 `latest_prices`
+
+Назначение: быстрый current/latest price layer.
+
+Ключевые поля:
+
+- `id`;
+- `instrument_id`;
+- `price`;
+- `previous_price nullable`;
+- `source_id nullable`;
+- `received_at`;
+- `market_time nullable`.
+
+Связи:
+
+- many-to-one к `instruments`;
+- optional many-to-one к `data_sources`.
+
+Уникальные ограничения:
+
+- unique `instrument_id`.
+
+Индексы:
+
+- `ix_latest_prices_instrument_id`;
+- `ix_latest_prices_received_at`.
+
+Комментарий:
+
+Текущая таблица `ticker_latest_prices` может быть постепенно заменена или связана с `latest_prices`.
+
+### 5.9 `ingestion_runs`
+
+Назначение: учет загрузок данных.
+
+Ключевые поля:
+
+- `id`;
+- `source_id`;
+- `ingestion_type`;
+- `status`;
+- `started_at`;
+- `finished_at nullable`;
+- `params_json nullable`;
+- `rows_loaded`;
+- `rows_failed`;
+- `error_message nullable`.
+
+Связи:
+
+- many-to-one к `data_sources`.
+
+Индексы:
+
+- `ix_ingestion_runs_source_started`;
+- `ix_ingestion_runs_status`.
+
+JSONB:
+
+- `params_json` лучше хранить как JSONB.
+
+### 5.10 `event_types`
+
+Назначение: справочник типов событий.
+
+Ключевые поля:
+
+- `id`;
+- `code`;
+- `name`;
+- `description`;
+- `default_source_id nullable`.
+
+Связи:
+
+- one-to-many с `events`;
+- optional many-to-one к `data_sources`.
+
+Уникальные ограничения:
+
+- unique `code`.
+
+Примеры `code`:
+
+- `key_rate_decision`;
+- `inflation_release`;
+- `fx_shock`;
+- `oil_shock`;
+- `dividend_gap`.
+
+### 5.11 `events`
+
+Назначение: конкретные события для event-study.
+
+Ключевые поля:
+
+- `id`;
+- `event_type_id`;
+- `source_event_id nullable`;
+- `event_date`;
+- `event_datetime nullable`;
+- `title`;
+- `direction nullable`;
+- `importance nullable`;
+- `source_id nullable`;
+- `created_at`.
+
+Связи:
+
+- many-to-one к `event_types`;
+- optional many-to-one к `data_sources`;
+- one-to-many к `event_values`;
+- one-to-many к `study_run_events`;
+- one-to-many к `study_event_results`.
+
+Уникальные ограничения:
+
+- для key rate можно unique `(event_type_id, event_date)`;
+- для общего слоя лучше unique `(event_type_id, event_date, title)` или source-specific external id, если появится.
+- если источник дает стабильный внешний id события, желательно unique `(source_id, source_event_id)`.
+
+Индексы:
+
+- `ix_events_type_date`;
+- `ix_events_date`;
+- `ix_events_direction`;
+- `ix_events_source_id`;
+- `ix_events_source_event_id`.
+
+Комментарий:
+
+`direction` можно использовать для `rate_cut`, `rate_hike`, `rate_hold`, но не все event types имеют direction.
+
+`source_event_id` нужен для повторных importer runs. Если ЦБ, MOEX или другой источник дает уникальный id события, его лучше сохранить, чтобы не создавать дубли по title/date эвристикам.
+
+### 5.12 `event_values`
+
+Назначение: гибкое хранение значений события.
+
+Ключевые поля:
+
+- `id`;
+- `event_id`;
+- `key`;
+- `numeric_value nullable`;
+- `text_value nullable`;
+- `unit nullable`.
+
+Связи:
+
+- many-to-one к `events`.
+
+Уникальные ограничения:
+
+- unique `(event_id, key)`.
+
+Индексы:
+
+- `ix_event_values_event_id`;
+- `ix_event_values_key`.
+
+Типы:
+
+- `numeric_value`: `Numeric`;
+- `text_value`: text.
+
+Примеры:
+
+- `rate_before = 16.00`;
+- `rate_after = 18.00`;
+- `change_bps = 200`;
+- `inflation_yoy = 7.40`;
+- `oil_price_change_percent = -5.20`.
+
+### 5.13 `study_runs`
+
+Назначение: один запуск аналитического исследования.
+
+Ключевые поля:
+
+- `id`;
+- `study_type`;
+- `main_instrument_id`;
+- `sector_id nullable`;
+- `market_benchmark_id nullable`;
+- `sector_benchmark_id nullable`;
+- `params_json`;
+- `methodology_version`;
+- `data_version nullable`;
+- `data_cutoff_at nullable`;
+- `status`;
+- `created_at`;
+- `completed_at nullable`.
+
+Связи:
+
+- many-to-one к `instruments`;
+- optional many-to-one к `sectors`;
+- optional many-to-one к `benchmarks`;
+- one-to-many к `study_run_events`;
+- one-to-many к `study_event_results`;
+- one-to-many к `study_horizon_summary`.
+
+Индексы:
+
+- `ix_study_runs_study_type_created`;
+- `ix_study_runs_main_instrument_id`;
+- `ix_study_runs_status`;
+
+JSONB:
+
+- `params_json` должен быть JSONB.
+
+Комментарий:
+
+`params_json` фиксирует horizons, filters, event type, direction, date range, benchmark settings.
+
+`methodology_version` фиксирует версию расчетной логики. Это важно, потому что один и тот же набор событий может дать другой результат после изменения правил поиска event candle, benchmark или классификации эффекта.
+
+`data_cutoff_at` показывает, на каком состоянии данных был сделан расчет. Например, study run мог быть построен по candles и events, доступным на конкретный момент времени.
+
+### 5.14 `study_run_events`
+
+Назначение: события, попавшие в конкретный study run.
+
+Ключевые поля:
+
+- `id`;
+- `study_run_id`;
+- `event_id`;
+- `status`;
+- `skipped_reason nullable`.
+
+Связи:
+
+- many-to-one к `study_runs`;
+- many-to-one к `events`.
+
+Уникальные ограничения:
+
+- unique `(study_run_id, event_id)`.
+
+Индексы:
+
+- `ix_study_run_events_run_id`;
+- `ix_study_run_events_event_id`;
+- `ix_study_run_events_status`.
+
+### 5.15 `study_event_results`
+
+Назначение: результат анализа по одному событию, одному instrument и одному horizon.
+
+Ключевые поля:
+
+- `id`;
+- `study_run_id`;
+- `event_id`;
+- `instrument_id`;
+- `horizon_trading_days`;
+- `event_price`;
+- `horizon_price`;
+- `return_percent`;
+- `market_return_percent nullable`;
+- `sector_return_percent nullable`;
+- `relative_to_market_percent nullable`;
+- `relative_to_sector_percent nullable`;
+- `status`;
+- `skipped_reason nullable`.
+
+Связи:
+
+- many-to-one к `study_runs`;
+- many-to-one к `events`;
+- many-to-one к `instruments`.
+
+Уникальные ограничения:
+
+- unique `(study_run_id, event_id, instrument_id, horizon_trading_days)`.
+
+Индексы:
+
+- `ix_study_event_results_run_horizon`;
+- `ix_study_event_results_event_id`;
+- `ix_study_event_results_instrument_id`;
+- `ix_study_event_results_status`;
+
+Типы:
+
+- price fields: `Numeric(18, 6)`;
+- percent fields: `Numeric(12, 6)` или `Numeric(10, 4)`.
+
+Комментарий:
+
+Если данных нет, не нужно писать fake zero. Поля return/price могут быть null, а `status/skipped_reason` объясняют причину.
+
+`horizon_trading_days` означает именно торговые дни, а не календарные. Например, значение `10` означает десятую доступную торговую свечу после event candle.
+
+### 5.16 `study_horizon_summary`
+
+Назначение: агрегированный результат study run по horizon.
+
+Ключевые поля:
+
+- `id`;
+- `study_run_id`;
+- `horizon_trading_days`;
+- `sample_size`;
+- `skipped_count`;
+- `median_return_percent nullable`;
+- `average_return_percent nullable`;
+- `hit_rate_percent nullable`;
+- `median_market_relative_percent nullable`;
+- `median_sector_relative_percent nullable`;
+- `best_horizon_flag`.
+
+Связи:
+
+- many-to-one к `study_runs`.
+
+Уникальные ограничения:
+
+- unique `(study_run_id, horizon_trading_days)`.
+
+Индексы:
+
+- `ix_study_horizon_summary_run_id`;
+- `ix_study_horizon_summary_best_horizon`.
+
+Типы:
+
+- percent fields: `Numeric`.
+
+`horizon_trading_days` означает торговые дни. Название намеренно длиннее, чем `horizon_days`, чтобы не смешивать торговые и календарные интервалы.
+
+### 5.17 `reporting_periods`
+
+Назначение: справочник отчетных периодов для future metrics layer.
+
+Ключевые поля:
+
+- `id`;
+- `period_type`;
+- `period_start`;
+- `period_end`;
+- `label`.
+
+Уникальные ограничения:
+
+- unique `(period_type, period_start, period_end)`.
+
+Индексы:
+
+- `ix_reporting_periods_type_start`.
+
+### 5.18 `metrics_catalog`
+
+Назначение: справочник метрик.
+
+Ключевые поля:
+
+- `id`;
+- `code`;
+- `name`;
+- `metric_type`;
+- `sector_id nullable`;
+- `unit`;
+- `frequency`;
+- `entity_type`;
+- `value_type`;
+- `description nullable`.
+
+Связи:
+
+- optional many-to-one к `sectors`;
+- one-to-many к `metric_observations`.
+
+Уникальные ограничения:
+
+- unique `code`.
+
+Индексы:
+
+- `ix_metrics_catalog_metric_type`;
+- `ix_metrics_catalog_sector_id`;
+- `ix_metrics_catalog_entity_type`.
+
+Комментарий:
+
+`entity_type` может быть:
+
+- `issuer`;
+- `sector`;
+- `instrument`;
+- `market`.
+
+### 5.19 `metric_observations`
+
+Назначение: значения метрик за отчетные периоды.
+
+Ключевые поля:
+
+- `id`;
+- `metric_id`;
+- `issuer_id nullable`;
+- `sector_id nullable`;
+- `instrument_id nullable`;
+- `reporting_period_id`;
+- `numeric_value nullable`;
+- `text_value nullable`;
+- `source_id nullable`;
+- `published_at nullable`;
+- `created_at`.
+
+Связи:
+
+- many-to-one к `metrics_catalog`;
+- optional many-to-one к `issuers`;
+- optional many-to-one к `sectors`;
+- optional many-to-one к `instruments`;
+- many-to-one к `reporting_periods`;
+- optional many-to-one к `data_sources`.
+
+Уникальные ограничения:
+
+- для MVP можно unique `(metric_id, issuer_id, sector_id, instrument_id, reporting_period_id)`;
+- в будущем может понадобиться source-aware uniqueness.
+
+Индексы:
+
+- `ix_metric_observations_metric_period`;
+- `ix_metric_observations_issuer_id`;
+- `ix_metric_observations_sector_id`;
+- `ix_metric_observations_instrument_id`;
+
+Типы:
+
+- `numeric_value`: `Numeric`;
+- `text_value`: text.
+
+## 6. Constraints and Indexes
+
+### Unique constraints
+
+Обязательные:
+
+- `instruments`: `(engine, market, board, secid)`;
+- `sectors`: `code`;
+- `benchmarks`: `code`;
+- `data_sources`: `code`;
+- `price_candles`: `(instrument_id, interval, begin_at)`;
+- `event_types`: `code`;
+- `events`: optional `(source_id, source_event_id)` when `source_event_id` is available;
+- `event_values`: `(event_id, key)`;
+- `study_run_events`: `(study_run_id, event_id)`;
+- `study_event_results`: `(study_run_id, event_id, instrument_id, horizon_trading_days)`;
+- `study_horizon_summary`: `(study_run_id, horizon_trading_days)`;
+- `reporting_periods`: `(period_type, period_start, period_end)`;
+- `metrics_catalog`: `code`.
+
+### Foreign keys
+
+Ключевые FK:
+
+- `instruments.issuer_id -> issuers.id`;
+- `issuer_sector_history.issuer_id -> issuers.id`;
+- `issuer_sector_history.sector_id -> sectors.id`;
+- `benchmarks.instrument_id -> instruments.id`;
+- `benchmarks.sector_id -> sectors.id`;
+- `price_candles.instrument_id -> instruments.id`;
+- `price_candles.source_id -> data_sources.id`;
+- `price_candles.ingestion_run_id -> ingestion_runs.id`;
+- `events.event_type_id -> event_types.id`;
+- `events.source_id -> data_sources.id`;
+- `event_values.event_id -> events.id`;
+- `study_runs.main_instrument_id -> instruments.id`;
+- `study_runs.sector_id -> sectors.id`;
+- `study_runs.market_benchmark_id -> benchmarks.id`;
+- `study_runs.sector_benchmark_id -> benchmarks.id`;
+- `study_event_results.study_run_id -> study_runs.id`;
+- `study_event_results.event_id -> events.id`;
+- `study_event_results.instrument_id -> instruments.id`.
+
+### Индексы для candles
+
+Основной индекс:
+
+- `(instrument_id, interval, begin_at)`.
+
+Дополнительные:
+
+- `(instrument_id, interval, trading_date)`;
+- `(begin_at)`;
+- `(trading_date)`;
+- `(interval, begin_at)`;
+- `(instrument_id, begin_at)`.
+
+Эти индексы нужны для:
+
+- поиска event candle `>= event_date`;
+- поиска horizon candle через N торговых свечей;
+- выборки диапазона дат;
+- дедупликации imports.
+
+### Индексы для events
+
+Основной:
+
+- `(event_type_id, event_date)`.
+
+Дополнительные:
+
+- `(event_date)`;
+- `(direction)`;
+- `(source_id)`.
+
+### Индексы для study results
+
+Основные:
+
+- `(study_run_id, horizon_trading_days)`;
+- `(study_run_id, event_id)`;
+- `(instrument_id, horizon_trading_days)`;
+- `(status)`.
+
+Они нужны для быстрой сборки:
+
+- event-level table;
+- horizon summary;
+- benchmark comparison;
+- debug skipped events.
+
+## 7. Как мигрировать без сноса БД
+
+Стратегия:
+
+1. Не удалять старые таблицы сразу.
+
+   `tickers`, `ticker_latest_prices`, `watchlist_items`, `alerts`, `alert_events`, `key_rate_decisions` должны продолжать работать.
+
+2. Добавлять новые таблицы параллельно.
+
+   Сначала reference layer, потом market data, потом event/study layer.
+
+3. Постепенно связать `tickers` с `instruments`.
+
+   Возможные варианты:
+
+   - добавить `instrument_id` в `tickers`;
+   - или постепенно заменить `tickers` на `instruments` в сервисах;
+   - не делать это одним большим PR.
+
+   Рекомендуемая последовательность:
+
+   - сначала создать `instruments`;
+   - сделать backfill из текущих `tickers`;
+   - добавить совместимость в read path;
+   - постепенно перевести market/watchlist/alerts/analyzer services на `instrument_id`;
+   - только после стабилизации думать об удалении legacy tables.
+
+4. Watchlist/alerts временно оставить на текущих таблицах.
+
+   Их можно перевести на `instrument_id` позже, когда reference layer стабилен.
+
+5. Key Rate Analyzer сначала оставить рабочим.
+
+   Затем:
+
+   - загрузить daily candles в `price_candles`;
+   - перенести key rate decisions в generic `events/event_values`;
+   - добавить study layer;
+   - переключить analyzer на новую модель.
+
+6. Делать миграции маленькими шагами.
+
+   Примерный порядок:
+
+   - create reference tables;
+   - backfill instruments from tickers;
+   - create price_candles;
+   - import candles;
+   - create event tables;
+   - backfill key rate events;
+   - create study tables;
+   - switch analyzer read path.
+
+7. После каждого шага прогонять:
+
+   - `alembic upgrade head`;
+   - backend tests;
+   - smoke API check;
+   - live demo critical flows.
+
+## 8. Что входит в v2, а что позже
+
+### v2 must-have
+
+- `issuers`;
+- `instruments`;
+- `sectors`;
+- `issuer_sector_history`;
+- `benchmarks`;
+- `data_sources`;
+- `price_candles`;
+- `event_types`;
+- `events`;
+- `event_values`;
+- `study_runs`;
+- `study_run_events`;
+- `study_event_results`;
+- `study_horizon_summary`;
+- Key Rate Analyzer v2 через новую модель.
+
+### v2 optional
+
+- минимальный `metrics_catalog`;
+- минимальные `reporting_periods`;
+- несколько ручных `metric_observations` для проверки будущего направления.
+
+Не стоит в v2 сразу массово наполнять sector/company metrics, если нет стабильного источника данных.
+
+### v2.5 / v3
+
+- sector-specific operational metrics;
+- company financial metrics;
+- richer metrics analysis;
+- сохраненные пользовательские hypotheses;
+- portfolio analytics;
+- второй/третий event analyzer.
+
+## 9. Риски
+
+### Overengineering
+
+Риск: спроектировать слишком большую БД и надолго застрять без видимого product progress.
+
+Как снижать:
+
+- сначала reference + daily candles + key rate event-study;
+- metrics layer оставить минимальным;
+- не делать универсальную платформу для всего сразу.
+
+### Слишком ранние sector metrics
+
+Риск: начать собирать операционные метрики банков, нефтяников, металлургов до того, как готов event-study foundation.
+
+Как снижать:
+
+- сначала сектор как benchmark/classification;
+- потом sector-specific metrics.
+
+### Отсутствие source provenance
+
+Риск: через месяц будет непонятно, откуда пришли данные и можно ли им доверять.
+
+Как снижать:
+
+- ввести `data_sources`;
+- использовать `source_id`;
+- хранить ingestion metadata.
+
+### Дубли свечей
+
+Риск: chunking/pagination/import повторно загрузит одни и те же candles.
+
+Как снижать:
+
+- unique `(instrument_id, interval, begin_at)`;
+- importer через upsert;
+- тесты на duplicate rows.
+
+### Смешивание issuer/instrument
+
+Риск: SBER/SBERP, sector metrics и candles начнут конфликтовать.
+
+Как снижать:
+
+- issuer для компании;
+- instrument для торгуемой бумаги;
+- candles только на instrument;
+- company metrics обычно на issuer.
+
+### Большой breaking refactor live demo
+
+Риск: сломать работающий demo ради v2.
+
+Как снижать:
+
+- не удалять старые endpoints;
+- добавлять новые таблицы параллельно;
+- переключать analyzer постепенно;
+- держать smoke tests.
+
+## 10. Рекомендованный порядок внедрения
+
+### Phase 1: Reference Layer
+
+Цель:
+
+- создать фундамент справочников.
+
+Задачи:
+
+- добавить `issuers`;
+- добавить `instruments`;
+- добавить `sectors`;
+- добавить `issuer_sector_history`;
+- добавить `benchmarks`;
+- добавить `data_sources`;
+- backfill instruments из текущих `tickers`.
+
+Результат:
+
+- можно определить, какая акция к какой компании и сектору относится.
+
+### Phase 2: Price Candles
+
+Цель:
+
+- перестать зависеть от live MOEX calls внутри analyzer.
+
+Задачи:
+
+- добавить `price_candles`;
+- добавить `ingestion_runs`;
+- сделать daily candles importer;
+- deduplicate/upsert по `(instrument_id, interval, begin_at)`;
+- покрыть importer тестами.
+
+Результат:
+
+- event-study может читать candles из БД.
+
+### Phase 3: Event / Study Layer
+
+Цель:
+
+- сделать generic event-study foundation.
+
+Задачи:
+
+- добавить `event_types`;
+- добавить `events`;
+- добавить `event_values`;
+- добавить `study_runs`;
+- добавить `study_run_events`;
+- добавить `study_event_results`;
+- добавить `study_horizon_summary`.
+
+Результат:
+
+- Key Rate Analyzer становится частным случаем общего event-study engine.
+
+### Phase 4: Key Rate Analyzer Migration
+
+Цель:
+
+- перевести текущий analyzer на новую модель без изменения пользовательской идеи.
+
+Задачи:
+
+- импортировать `key_rate_decisions` в `events/event_values`;
+- читать candles из `price_candles`;
+- записывать результаты в `study_*`;
+- сохранить текущий endpoint или добавить v2 endpoint рядом.
+
+Результат:
+
+- analyzer становится воспроизводимым и расширяемым.
+
+### Phase 5: Sector Benchmark Output
+
+Цель:
+
+- добавить сравнение акции с сектором и рынком.
+
+Задачи:
+
+- определить sector benchmark для instrument;
+- определить market benchmark;
+- считать:
+  - absolute return;
+  - relative to market;
+  - relative to sector;
+- расширить API response и frontend result panel.
+
+Результат:
+
+- FinLab начинает отвечать не только "акция выросла/упала", но и "лучше/хуже сектора и рынка".
+
+### Phase 6: Future Metrics Layer
+
+Цель:
+
+- подготовить основу для операционных и финансовых метрик.
+
+Задачи:
+
+- добавить `reporting_periods`;
+- добавить `metrics_catalog`;
+- добавить `metric_observations`;
+- начать с 3-5 ручных/curated metrics, без массового импорта.
+
+Результат:
+
+- появляется база для будущего sector/company analytics.
+
+## 11. Зафиксированные решения и ручная проверка
+
+В этой версии спецификации зафиксированы следующие архитектурные defaults:
+
+1. Секторная принадлежность: `issuer_sector_history`.
+
+   Сектор относится к компании/эмитенту. Instrument-level override можно добавить позже отдельной таблицей, если появятся реальные исключения.
+
+2. Candles date/time: `begin_at` + `trading_date`.
+
+   `begin_at` хранится как timezone-aware `DateTime`, `trading_date` — как `Date`. Для daily candles `begin_at` нормализуется к дате/началу торгового дня, а `trading_date` используется для поиска торговых горизонтов.
+
+3. Horizon naming: `horizon_trading_days`.
+
+   Горизонты в study layer считаются в торговых днях, а не календарных.
+
+4. Market benchmark: индекс как instrument.
+
+   Market index вроде IMOEX хранится как `instrument` с `asset_type = index`, а `benchmarks` ссылается на этот instrument. Это отделяет индекс IMOEX от акции `MOEX`.
+
+5. Study results persistent.
+
+   `study_runs`, `study_event_results` и `study_horizon_summary` должны сохраняться, чтобы анализ был воспроизводимым.
+
+6. Legacy `tickers`.
+
+   Текущие `tickers` временно остаются. Сначала создаются `instruments`, затем делается backfill, затем сервисы постепенно переводятся на новую модель.
+
+Перед миграциями все еще нужно вручную проверить:
+
+- доступен ли надежный источник candles для IMOEX или другого market benchmark;
+- какую timezone использовать для нормализации `begin_at`;
+- какие source-specific external ids доступны для событий;
+- какие минимальные sectors/benchmarks нужны для первого v2 demo;
+- стоит ли включать future metrics layer в первую пачку миграций или оставить только в спецификации.

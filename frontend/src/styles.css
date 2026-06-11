@@ -516,6 +516,11 @@ td {
   font-size: 11px;
 }
 
+.stackedCell .referenceMeta {
+  color: var(--muted-strong);
+  font-size: 12px;
+}
+
 .numericCell {
   color: var(--text);
   font-weight: 800;

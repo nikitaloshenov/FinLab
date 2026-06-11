@@ -9,6 +9,7 @@ from app.core.logging import setup_logging
 from app.modules.alerts.router import router as alerts_router
 from app.modules.hypotheses.router import router as hypotheses_router
 from app.modules.market.router import router as market_router
+from app.modules.reference.router import router as reference_router
 from app.modules.watchlist.router import router as watchlist_router
 
 
@@ -56,5 +57,10 @@ app.include_router(
 
 app.include_router(
     hypotheses_router,
+    prefix=settings.api_v1_prefix,
+)
+
+app.include_router(
+    reference_router,
     prefix=settings.api_v1_prefix,
 )

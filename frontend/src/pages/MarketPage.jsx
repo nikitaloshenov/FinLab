@@ -17,6 +17,7 @@ import {
 import { HypothesisLabSection } from "../features/hypotheses/HypothesisLabSection.jsx";
 import { MarketChartSection } from "../features/market/MarketChartSection.jsx";
 import { MarketOverviewSection } from "../features/market/MarketOverviewSection.jsx";
+import { getInstrumentReference } from "../features/reference/api.js";
 import { WatchlistSection } from "../features/watchlist/WatchlistSection.jsx";
 import {
   addWatchlistItem,
@@ -50,6 +51,7 @@ export function MarketPage() {
   const [alerts, setAlerts] = useState([]);
   const [alertEvents, setAlertEvents] = useState([]);
   const [candles, setCandles] = useState([]);
+  const [instrumentReferences, setInstrumentReferences] = useState({});
 
   const [newTicker, setNewTicker] = useState("");
   const [selectedTicker, setSelectedTicker] = useState("");
@@ -192,6 +194,44 @@ export function MarketPage() {
   useEffect(() => {
     loadPageData();
   }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadInstrumentReferences() {
+      const secids = [...new Set(watchlist.map((item) => item.secid))];
+
+      if (secids.length === 0) {
+        setInstrumentReferences({});
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        secids.map(async (secid) => [secid, await getInstrumentReference(secid)])
+      );
+
+      if (isCancelled) {
+        return;
+      }
+
+      const nextReferences = {};
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const [secid, reference] = result.value;
+          nextReferences[secid] = reference;
+        }
+      }
+
+      setInstrumentReferences(nextReferences);
+    }
+
+    loadInstrumentReferences();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [watchlist]);
 
   async function handleAddTicker(event) {
     event.preventDefault();
@@ -593,6 +633,7 @@ export function MarketPage() {
         <div className="dashboardSide">
           <WatchlistSection
             watchlist={watchlist}
+            instrumentReferences={instrumentReferences}
             newTicker={newTicker}
             onNewTickerChange={setNewTicker}
             onAddTicker={handleAddTicker}

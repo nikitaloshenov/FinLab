@@ -3,6 +3,7 @@ import { MarketUniverseQuickAdd } from "./MarketUniverseQuickAdd.jsx";
 
 export function WatchlistSection({
   watchlist,
+  instrumentReferences = {},
   newTicker,
   onNewTickerChange,
   onAddTicker,
@@ -97,6 +98,12 @@ export function WatchlistSection({
                 const isTickerRefreshing = refreshingTickers.includes(
                   item.secid
                 );
+                const reference = instrumentReferences[item.secid];
+                const referenceParts = [
+                  reference?.issuer?.name,
+                  reference?.sector?.name,
+                  reference?.asset_type,
+                ].filter(Boolean);
 
                 return (
                   <tr
@@ -121,6 +128,11 @@ export function WatchlistSection({
                     <td>
                       <div className="stackedCell">
                         <strong>{item.short_name || "—"}</strong>
+                        {referenceParts.length > 0 && (
+                          <span className="referenceMeta">
+                            {referenceParts.join(" · ")}
+                          </span>
+                        )}
                         <span>Добавлен {formatDate(item.created_at)}</span>
                       </div>
                     </td>

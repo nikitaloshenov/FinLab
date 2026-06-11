@@ -1,7 +1,7 @@
 import { getDemoSessionId } from "../session.js";
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1"
+  import.meta.env.VITE_API_BASE_URL || "/api/v1"
 ).replace(/\/$/, "");
 
 export class ApiError extends Error {
@@ -15,7 +15,10 @@ export class ApiError extends Error {
 }
 
 export function isNetworkApiError(error) {
-  return error instanceof ApiError && (error.status === 0 || error.code === "network_error");
+  return (
+    error instanceof ApiError &&
+    (error.status === 0 || error.code === "network_error")
+  );
 }
 
 function parseErrorPayload(payload) {

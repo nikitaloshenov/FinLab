@@ -1323,3 +1323,128 @@ JSONB:
 - какие source-specific external ids доступны для событий;
 - какие минимальные sectors/benchmarks нужны для первого v2 demo;
 - стоит ли включать future metrics layer в первую пачку миграций или оставить только в спецификации.
+
+## 12. Analytics DB Core Implementation Notes
+
+This section fixes the target v2 analytics DB core implemented after the initial reference layer.
+It is intentionally additive: legacy `tickers`, `ticker_latest_prices`, `watchlist_items`,
+`alerts`, `alert_events` and `key_rate_decisions` remain untouched until separate migration
+tasks move read/write paths.
+
+### 12.1 Reference Layer Boundary
+
+The reference layer remains:
+
+- `issuers`;
+- `instruments`;
+- `sectors`;
+- `issuer_sector_history`;
+- `benchmarks`;
+- `data_sources`.
+
+Important benchmark rule:
+
+- `MOEX` is the stock/instrument of Moscow Exchange and must not be treated as the market benchmark.
+- A market benchmark must point to a real index instrument, for example `IMOEX`, only when the project has reliable instrument metadata and candle support for it.
+- If a market index is not available yet, `benchmarks.instrument_id` stays nullable/unavailable. Do not silently substitute the `MOEX` stock as the market benchmark.
+
+### 12.2 Market Data Layer
+
+The v2 market data core contains:
+
+- `trading_calendar` for market trading days and session metadata;
+- `ingestion_runs` for import/load provenance;
+- `price_candles` for persisted OHLCV candles.
+
+`price_candles` uses:
+
+- `begin_at` as timezone-aware DateTime;
+- `trading_date` as Date for event-study horizon lookup;
+- unique `(instrument_id, interval, begin_at)`;
+- index `(instrument_id, interval, trading_date)`;
+- nullable `source_id` and nullable `ingestion_run_id`.
+
+`latest_prices` is not part of the current analytics-core migration. It can be added later as a v2 replacement for legacy `ticker_latest_prices` if the live/demo read path is migrated.
+
+### 12.3 Event Layer
+
+The generic event layer contains:
+
+- `event_types`;
+- `events`;
+- `event_values`;
+- `event_targets`.
+
+`events.source_event_id` is nullable and indexed. If a source provides stable unique ids, future importers should use it for deduplication. Exact partial uniqueness for `(source_id, source_event_id)` can be added later in a Postgres-specific migration once importer behavior is stable.
+
+`event_targets` allows an event to target:
+
+- market;
+- sector;
+- issuer;
+- instrument;
+- benchmark.
+
+Nullable target columns make strict database-level uniqueness awkward, so exact target uniqueness can be enforced in business/import validation first.
+
+### 12.4 Benchmark And Sector Composition
+
+`benchmark_constituents` supports synthetic sector baskets and benchmark composition.
+
+Sector return can be calculated by:
+
+- a real sector benchmark instrument, if available;
+- a synthetic equal-weight basket based on sector instruments;
+- a median sector basket based on sector instruments.
+
+This table is composition/provenance foundation only. It does not calculate returns by itself.
+
+### 12.5 Study Layer
+
+The v2 study layer contains:
+
+- `study_runs`;
+- `study_run_events`;
+- `study_event_results`;
+- `study_benchmark_results`;
+- `study_comparisons`;
+- `study_horizon_summary`;
+- `study_skipped_events`.
+
+Study runs store:
+
+- `methodology_version`;
+- `params_json`;
+- optional `data_version`;
+- optional `data_cutoff_at`;
+- status and error fields.
+
+Per-event outputs are split deliberately:
+
+- `study_event_results` stores target instrument returns;
+- `study_benchmark_results` stores benchmark or synthetic basket returns;
+- `study_comparisons` stores relative results such as `relative_to_market` and `relative_to_sector`;
+- `study_skipped_events` stores explicit audit/debug reasons for missing data or invalid event/candle combinations.
+
+All horizons are trading-day horizons and should use `horizon_trading_days`, not calendar-day naming.
+
+### 12.6 Future Metrics Layer
+
+`reporting_periods`, `metrics_catalog` and `metric_observations` stay future-ready only. They are not part of the current analytics DB core migration because stable company/sector fundamental data sources are not ready yet.
+
+### 12.7 Migration Strategy
+
+The current implementation creates the analytics core in parallel with the legacy product layer. It does not:
+
+- switch the legacy Key Rate Impact Analyzer to the new tables;
+- delete legacy tables;
+- change watchlist, alerts or demo session behavior;
+- add frontend UI;
+- add auth.
+
+The recommended next steps are:
+
+1. import/persist daily candles into `price_candles`;
+2. backfill `key_rate_decisions` into generic `events` and `event_values`;
+3. implement a v2 event-study service that reads from `price_candles`, `events` and `study_*`;
+4. add sector/market comparison only after proper benchmark/index support is available.

@@ -13,6 +13,9 @@ from app.modules.watchlist import models as watchlist_models
 from app.modules.alerts import models as alerts_models
 from app.modules.hypotheses import models as hypotheses_models
 from app.modules.reference import models as reference_models
+from app.modules.market_data import models as market_data_models
+from app.modules.events import models as events_models
+from app.modules.studies import models as studies_models
 
 
 config = context.config

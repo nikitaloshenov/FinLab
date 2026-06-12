@@ -1502,3 +1502,83 @@ Out of scope for Phase 2.1:
 - sector comparison;
 - switching the legacy Key Rate Impact Analyzer to `price_candles`;
 - importing `key_rate_decisions` into the generic `events` table.
+
+## 14. Key Rate Events Migration Strategy
+
+Phase 2.2 backfills the legacy `key_rate_decisions` table into the generic v2 events layer without switching the live analyzer yet.
+
+The legacy table remains the source for the current Key Rate Impact Analyzer MVP. The v2 import is a parallel analytics foundation only:
+
+- no frontend changes;
+- no API contract changes;
+- no analyzer behavior changes;
+- no deletion of `key_rate_decisions`;
+- no event-study engine switch yet.
+
+### 14.1 Event Type
+
+Key rate decisions are represented as:
+
+- `event_types.code = key_rate_decision`;
+- `event_types.name = Key rate decision`;
+- `event_types.default_source_id = data_sources.cbr`, when available.
+
+If `data_sources.cbr` does not exist, the importer may fall back to `manual_seed` or leave `source_id` nullable. This keeps local MVP environments usable while preserving provenance when reference seed has been run.
+
+### 14.2 Event Mapping
+
+Each legacy `key_rate_decisions` row maps to one `events` row:
+
+- `event_date = key_rate_decisions.decision_date`;
+- `event_datetime = publication_datetime_msk`, when available;
+- `source_event_id = key_rate_decision:{decision_date}`;
+- `direction = hike | cut | hold | unknown`;
+- `importance = high`;
+- `source_id = cbr/manual_seed/null`, depending on available reference data.
+
+Direction is derived from `rate_before` and `rate_after` first:
+
+- `rate_after > rate_before` -> `hike`;
+- `rate_after < rate_before` -> `cut`;
+- `rate_after == rate_before` -> `hold`.
+
+If rates are incomplete, the importer may fall back to the legacy direction values `rate_hike`, `rate_cut` and `rate_hold`. If neither source is sufficient, direction should be `unknown`.
+
+### 14.3 Event Values
+
+Key rate numeric fields are stored in `event_values`:
+
+- `key_rate` from `rate_after`, unit `percent`;
+- `previous_key_rate` from `rate_before`, unit `percent`;
+- `change_bps` from `change_bps` or calculated as `(rate_after - rate_before) * 100`, unit `bps`.
+
+Values are upserted by `(event_id, key)`. Re-running the importer must update values instead of creating duplicates.
+
+### 14.4 Event Target
+
+Key rate decisions affect the broad market in this MVP layer. Each imported event gets an `event_targets` row:
+
+- `target_type = market`;
+- `instrument_id = null`;
+- `issuer_id = null`;
+- `sector_id = null`;
+- `benchmark_id = null`.
+
+Specific instrument, sector or benchmark targets can be added later if a richer macro event taxonomy needs them.
+
+### 14.5 Idempotency And Cutover
+
+The importer must be idempotent:
+
+- no duplicate `event_types` for `key_rate_decision`;
+- no duplicate `events` for the same legacy decision date/source id;
+- no duplicate `event_values` for the same `(event_id, key)`;
+- no duplicate market `event_targets` for the same event.
+
+Recommended cutover sequence:
+
+1. keep importing legacy `key_rate_decisions` into v2 `events`;
+2. validate row counts and duplicate checks;
+3. implement a v2 event-study service that reads `events`, `price_candles` and `study_*`;
+4. compare v1 analyzer output with v2 output;
+5. only then consider switching the API/UI to the v2 engine.

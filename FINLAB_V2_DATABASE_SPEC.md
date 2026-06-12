@@ -1448,3 +1448,57 @@ The recommended next steps are:
 2. backfill `key_rate_decisions` into generic `events` and `event_values`;
 3. implement a v2 event-study service that reads from `price_candles`, `events` and `study_*`;
 4. add sector/market comparison only after proper benchmark/index support is available.
+
+## 13. Market Data Ingestion Strategy
+
+Market data ingestion is intentionally separated from migrations and reference seed.
+
+Rules:
+
+- migrations create only database structure;
+- reference seed creates only reference data such as sources, sectors, instruments and benchmark placeholders;
+- candles are loaded only by an explicit importer command;
+- candles are not hardcoded;
+- candles are not loaded through Alembic migrations;
+- candles are not loaded through reference seed;
+- the project does not automatically import the full market history.
+
+Phase 2.1 supports only:
+
+- daily candles;
+- interval `1d`;
+- explicit `secid`;
+- explicit date range;
+- manual CLI run;
+- upsert into `price_candles` by `(instrument_id, interval, begin_at)`;
+- ingestion audit through `ingestion_runs`.
+
+Example:
+
+```bash
+python -m app.modules.market_data.import_candles --secid SBER --from 2024-01-01 --to 2024-02-01
+```
+
+Repeated runs for the same instrument/date window must not create duplicate candles. Existing OHLCV rows may be updated with the newest imported values and the latest `ingestion_run_id`.
+
+The importer writes:
+
+- `instrument_id`;
+- `interval = 1d`;
+- `begin_at`;
+- `trading_date`;
+- `open`, `high`, `low`, `close`;
+- `volume`;
+- `value`, when MOEX provides it;
+- `source_id = data_sources.moex`, if available;
+- `ingestion_run_id`.
+
+Out of scope for Phase 2.1:
+
+- intraday candles;
+- full-market historical import;
+- automatic background import;
+- event-window importer;
+- sector comparison;
+- switching the legacy Key Rate Impact Analyzer to `price_candles`;
+- importing `key_rate_decisions` into the generic `events` table.

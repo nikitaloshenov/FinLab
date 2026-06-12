@@ -1582,3 +1582,110 @@ Recommended cutover sequence:
 3. implement a v2 event-study service that reads `events`, `price_candles` and `study_*`;
 4. compare v1 analyzer output with v2 output;
 5. only then consider switching the API/UI to the v2 engine.
+
+## 15. Event Study Engine v1 Methodology
+
+Phase 2.3 introduces the first working analytics calculation on top of the v2 database layer.
+
+The engine reads:
+
+- events from v2 `events`;
+- daily prices from v2 `price_candles`;
+- one target instrument from v2 `instruments`.
+
+The engine writes:
+
+- one `study_runs` row per real run;
+- `study_run_events`;
+- `study_event_results`;
+- `study_horizon_summary`;
+- `study_skipped_events`, when an event or horizon cannot be calculated.
+
+Current v1 scope:
+
+- one selected instrument by `secid`;
+- one selected `event_type.code`, for example `key_rate_decision`;
+- daily candles only, `interval = 1d`;
+- absolute instrument return only;
+- no market benchmark comparison;
+- no sector comparison;
+- no frontend;
+- no API endpoint;
+- no switch of the legacy Key Rate Impact Analyzer.
+
+### 15.1 Event Candle Selection
+
+For each event:
+
+1. use `events.event_date` as the anchor;
+2. find the first `price_candles` row for the target instrument where:
+   - `interval = 1d`;
+   - `trading_date >= events.event_date`;
+3. use this candle as the event candle.
+
+This means that if an event date is a weekend or non-trading day, the engine uses the nearest following available trading candle from persisted data.
+
+### 15.2 Horizon Candle Selection
+
+For each requested horizon `N`:
+
+1. start from the event candle position inside the instrument's sorted daily candles;
+2. select the candle at `event_index + N`;
+3. horizons are trading-day offsets based on available candles, not calendar-day offsets.
+
+The field name is `horizon_trading_days` to avoid ambiguity.
+
+### 15.3 Return Formula
+
+For each successful event/horizon pair:
+
+```text
+return_percent = (horizon_close - event_close) / event_close * 100
+```
+
+All calculations should use `Decimal`/`Numeric`-friendly arithmetic. Missing data must not be converted to fake zero returns.
+
+### 15.4 Skip Rules
+
+The engine skips data explicitly:
+
+- `no_event_candle` when no candle exists on or after the event date;
+- `invalid_event_price` when event close is missing or not positive;
+- `no_horizon_candles` when the requested horizon candle does not exist;
+- `invalid_horizon_price` when the horizon close is missing;
+- `no_events_found` when the selected event type/date range has no events.
+
+If an event has at least one successful horizon, `study_run_events.status = success`. If all requested horizons are skipped, `study_run_events.status = skipped` and a `study_skipped_events` row is written.
+
+### 15.5 Study Run Metadata
+
+Each real run creates a new `study_runs` row. Event-study runs are not idempotent by default because each run represents a specific research calculation over a specific data cut.
+
+Required metadata:
+
+- `study_type = event_study`;
+- `event_type_id`;
+- `target_type = instrument`;
+- `target_instrument_id`;
+- `params_json`;
+- `methodology_version = event_study_v1`;
+- `data_cutoff_at = current UTC datetime`;
+- `status = running | success | failed`;
+- `completed_at` when finished.
+
+Dry-run mode may calculate the same result object but should roll back DB writes.
+
+### 15.6 Horizon Summary
+
+`study_horizon_summary` aggregates only successful `study_event_results`.
+
+For each horizon:
+
+- `sample_size` is the number of successful event/horizon results;
+- `skipped_count` is total events minus successful results for that horizon;
+- `positive_count`, `negative_count`, `neutral_count` are based on `return_percent`;
+- `average_return_percent` and `median_return_percent` ignore skipped/null rows;
+- `hit_rate_percent` is positive returns divided by sample size;
+- relative-return fields remain `null` in v1.
+
+`best_horizon_flag` may be set for the horizon with the highest average return when at least one horizon has usable data.

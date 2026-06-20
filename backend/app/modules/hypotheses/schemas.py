@@ -102,6 +102,108 @@ class KeyRateImpactAnalyzeRequest(BaseModel):
         return normalized_horizons
 
 
+class KeyRateImpactV2AnalyzeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    secid: str = Field(min_length=1, max_length=32)
+    date_from: date | None = None
+    date_to: date | None = None
+    horizons: list[int] = Field(default_factory=lambda: [1, 5, 10, 20])
+    auto_prepare_data: bool = True
+    refresh_candles: bool = False
+
+    @field_validator("secid")
+    @classmethod
+    def validate_secid(cls, secid: str) -> str:
+        normalized_secid = secid.strip().upper()
+
+        if not normalized_secid:
+            raise ValueError("secid cannot be empty")
+
+        return normalized_secid
+
+    @field_validator("horizons")
+    @classmethod
+    def validate_v2_horizons(cls, horizons: list[int]) -> list[int]:
+        normalized_horizons = []
+
+        for horizon in horizons:
+            if horizon <= 0:
+                raise ValueError("horizons must contain only positive integers")
+            if horizon > 60:
+                raise ValueError("horizons must be less than or equal to 60")
+            if horizon not in normalized_horizons:
+                normalized_horizons.append(horizon)
+
+        if not normalized_horizons:
+            raise ValueError("horizons cannot be empty")
+
+        return normalized_horizons
+
+    @model_validator(mode="after")
+    def validate_v2_dates(self):
+        if self.date_from is not None and self.date_to is not None:
+            if self.date_from > self.date_to:
+                raise ValueError("date_from must be less than or equal to date_to")
+
+        return self
+
+
+class KeyRateImpactV2InstrumentResponse(BaseModel):
+    secid: str
+    name: str | None
+    asset_type: str
+    sector: str | None = None
+
+
+class KeyRateImpactV2SummaryResponse(BaseModel):
+    horizon_trading_days: int
+    sample_size: int
+    skipped_count: int
+    positive_count: int
+    negative_count: int
+    neutral_count: int
+    average_return_percent: Decimal | None
+    median_return_percent: Decimal | None
+    hit_rate_percent: Decimal | None
+    best_horizon_flag: bool
+
+
+class KeyRateImpactV2DataPreparationResponse(BaseModel):
+    key_rate_events_ready: bool
+    key_rate_events_importer_ran: bool
+    candles_ready: bool
+    candles_importer_ran: bool
+    candles_rows_loaded: int
+    required_from: date | None
+    required_to: date | None
+
+
+class KeyRateImpactV2SampleResultResponse(BaseModel):
+    event_id: int
+    horizon_trading_days: int
+    event_price: Decimal | None
+    horizon_price: Decimal | None
+    return_percent: Decimal | None
+    status: str
+    skipped_reason: str | None
+
+
+class KeyRateImpactV2AnalyzeResponse(BaseModel):
+    study_run_id: int | None
+    secid: str
+    instrument: KeyRateImpactV2InstrumentResponse
+    event_type: str
+    events_total: int
+    events_processed: int
+    events_skipped: int
+    horizons: list[int]
+    summary: list[KeyRateImpactV2SummaryResponse]
+    data_preparation: KeyRateImpactV2DataPreparationResponse
+    status: str
+    sample_results: list[KeyRateImpactV2SampleResultResponse] = Field(default_factory=list)
+
+
 class KeyRateEventResponse(BaseModel):
     event_id: str
     event_date: date

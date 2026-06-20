@@ -1689,3 +1689,90 @@ For each horizon:
 - relative-return fields remain `null` in v1.
 
 `best_horizon_flag` may be set for the horizon with the highest average return when at least one horizon has usable data.
+
+## 16. Key Rate Analyzer v2 Cutover Strategy
+
+Phase 2.4 adds a backend-level v2 Key Rate Analyzer orchestration flow. The legacy analyzer remains available and unchanged.
+
+The v2 flow is an orchestrator over:
+
+- reference `instruments`;
+- v2 `events` with `event_types.code = key_rate_decision`;
+- v2 `price_candles` with `interval = 1d`;
+- the v2 event-study engine;
+- persisted `study_*` results.
+
+This is an on-demand analysis flow, not an application startup import, background job, scheduled updater or full-market data loader.
+
+### 16.1 Request Flow
+
+The backend receives:
+
+- selected `secid`;
+- optional `date_from` and `date_to`;
+- trading-day horizons;
+- `auto_prepare_data`;
+- `refresh_candles`.
+
+Then it:
+
+1. resolves the target instrument in the reference layer;
+2. checks whether v2 key rate events exist;
+3. if events are missing and `auto_prepare_data = true`, runs the existing key rate events importer service;
+4. determines the required daily candle date range from request dates or available events;
+5. adds a calendar buffer after `date_to` or the last event date for horizon candles;
+6. checks whether daily candles exist for the selected instrument;
+7. if candles are missing or `refresh_candles = true`, runs the existing daily candles importer only for the requested instrument/date range;
+8. runs the v2 event-study engine;
+9. returns a structured result with `study_run_id`, horizon summary and data preparation metadata.
+
+### 16.2 Data Preparation Rules
+
+Data preparation is controlled and request-scoped:
+
+- no full-market imports;
+- no startup auto-import;
+- no scheduler;
+- no background worker;
+- no watchlist/latest-price usage;
+- no intraday/10m chart candle usage.
+
+The v2 analyzer uses only daily close prices from v2 `price_candles` where `interval = 1d`.
+
+If MOEX candle import fails, the request should return a clear backend error. If candles remain incomplete after preparation, the event-study engine should still record skipped events/horizons instead of inventing zero returns.
+
+### 16.3 API Layer
+
+The initial backend endpoint is:
+
+```text
+POST /api/v1/hypotheses/key-rate-impact/v2
+```
+
+The old endpoint remains:
+
+```text
+POST /api/v1/hypotheses/key-rate-impact/analyze
+```
+
+The v2 endpoint does not replace the legacy endpoint yet. Frontend cutover is a separate future step.
+
+### 16.4 Current Scope
+
+Included:
+
+- one target instrument;
+- key rate decision events;
+- daily candle preparation for the requested instrument/date range;
+- absolute instrument returns;
+- horizon summary;
+- persisted study runs and results.
+
+Excluded:
+
+- sector comparison;
+- market benchmark/IMOEX comparison;
+- inflation, FX or oil event types;
+- frontend changes;
+- scheduled refresh;
+- Docker/deploy changes.

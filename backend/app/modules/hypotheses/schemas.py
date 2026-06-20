@@ -111,6 +111,9 @@ class KeyRateImpactV2AnalyzeRequest(BaseModel):
     horizons: list[int] = Field(default_factory=lambda: [1, 5, 10, 20])
     auto_prepare_data: bool = True
     refresh_candles: bool = False
+    include_sector_comparison: bool = True
+    sector_peer_limit: int = Field(default=8, ge=1, le=15)
+    auto_prepare_sector_data: bool = False
 
     @field_validator("secid")
     @classmethod
@@ -189,6 +192,53 @@ class KeyRateImpactV2SampleResultResponse(BaseModel):
     skipped_reason: str | None
 
 
+class KeyRateImpactV2SectorResponse(BaseModel):
+    code: str
+    name: str
+
+
+class KeyRateImpactV2SectorPeerSkippedResponse(BaseModel):
+    secid: str
+    reason: str
+
+
+class KeyRateImpactV2SectorSummaryResponse(BaseModel):
+    horizon_trading_days: int
+    selected_average_return_percent: Decimal | None
+    sector_average_return_percent: Decimal | None
+    sector_median_return_percent: Decimal | None
+    excess_return_percent: Decimal | None
+    selected_rank_in_sector: int | None
+    sector_instrument_count: int
+    sector_hit_rate_percent: Decimal | None
+
+
+class KeyRateImpactV2SectorDataPreparationResponse(BaseModel):
+    auto_prepare_sector_data: bool
+    sector_peer_candles_importer_ran_count: int
+    sector_peer_candles_rows_loaded: int
+    peers_prepared: int
+    peers_skipped_due_to_missing_data: int
+
+
+class KeyRateImpactV2SectorComparisonResponse(BaseModel):
+    status: Literal[
+        "success",
+        "disabled",
+        "no_sector_mapping",
+        "no_peers",
+        "insufficient_data",
+    ]
+    sector: KeyRateImpactV2SectorResponse | None = None
+    selected_secid: str | None = None
+    peers_total: int = 0
+    peers_used: int = 0
+    peer_secids: list[str] = Field(default_factory=list)
+    peers_skipped: list[KeyRateImpactV2SectorPeerSkippedResponse] = Field(default_factory=list)
+    summary: list[KeyRateImpactV2SectorSummaryResponse] = Field(default_factory=list)
+    data_preparation: KeyRateImpactV2SectorDataPreparationResponse | None = None
+
+
 class KeyRateImpactV2AnalyzeResponse(BaseModel):
     study_run_id: int | None
     secid: str
@@ -202,6 +252,7 @@ class KeyRateImpactV2AnalyzeResponse(BaseModel):
     data_preparation: KeyRateImpactV2DataPreparationResponse
     status: str
     sample_results: list[KeyRateImpactV2SampleResultResponse] = Field(default_factory=list)
+    sector_comparison: KeyRateImpactV2SectorComparisonResponse | None = None
 
 
 class KeyRateEventResponse(BaseModel):

@@ -13,7 +13,7 @@ from app.modules.events.models import Event, EventType
 from app.modules.hypotheses import key_rate_v2_service
 from app.modules.market_data.models import PriceCandle
 from app.modules.market_data.service import CandleImportResult
-from app.modules.reference.models import Instrument
+from app.modules.reference.models import Instrument, Issuer, IssuerSectorHistory, Sector
 
 
 @pytest.fixture
@@ -87,6 +87,252 @@ def test_key_rate_impact_v2_endpoint_works_when_data_is_prepared(api_client):
     assert data["data_preparation"]["key_rate_events_importer_ran"] is False
     assert data["data_preparation"]["candles_ready"] is True
     assert data["data_preparation"]["candles_importer_ran"] is False
+    assert data["sector_comparison"]["status"] == "no_sector_mapping"
+
+
+def test_key_rate_impact_v2_sector_comparison_success(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        sector = _seed_sector(session)
+        instrument = _seed_instrument(session, sector=sector)
+        peer = _seed_instrument(session, secid="VTBR", sector=sector)
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, peer, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, peer, trading_date=date(2024, 1, 4), close=Decimal("105"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "include_sector_comparison": True,
+        },
+    )
+
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["sector_comparison"]["status"] == "success"
+    assert data["sector_comparison"]["sector"]["code"] == "finance"
+    assert data["sector_comparison"]["peers_total"] == 1
+    assert data["sector_comparison"]["peers_used"] == 1
+    assert data["sector_comparison"]["peer_secids"] == ["VTBR"]
+    sector_summary = data["sector_comparison"]["summary"][0]
+    assert Decimal(str(sector_summary["selected_average_return_percent"])) == Decimal("10.0")
+    assert Decimal(str(sector_summary["sector_average_return_percent"])) == Decimal("5.0")
+    assert Decimal(str(sector_summary["excess_return_percent"])) == Decimal("5.0")
+
+
+def test_key_rate_impact_v2_sector_comparison_can_be_disabled(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        instrument = _seed_instrument(session)
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "include_sector_comparison": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["sector_comparison"]["status"] == "disabled"
+
+
+def test_key_rate_impact_v2_sector_with_no_peers_returns_no_peers(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        sector = _seed_sector(session)
+        instrument = _seed_instrument(session, sector=sector)
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["sector_comparison"]["status"] == "no_peers"
+
+
+def test_key_rate_impact_v2_missing_peer_candles_are_skipped(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        sector = _seed_sector(session)
+        instrument = _seed_instrument(session, sector=sector)
+        _seed_instrument(session, secid="VTBR", sector=sector)
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "auto_prepare_sector_data": False,
+        },
+    )
+
+    sector_comparison = response.json()["sector_comparison"]
+
+    assert response.status_code == 200
+    assert sector_comparison["status"] == "insufficient_data"
+    assert sector_comparison["peers_skipped"] == [
+        {"secid": "VTBR", "reason": "missing_daily_candles"}
+    ]
+    assert sector_comparison["data_preparation"]["peers_skipped_due_to_missing_data"] == 1
+
+
+def test_key_rate_impact_v2_auto_prepare_sector_data_respects_peer_limit(
+    api_client,
+    monkeypatch,
+):
+    client, SessionLocal = api_client
+    imported_secids = []
+    session = SessionLocal()
+    try:
+        sector = _seed_sector(session)
+        instrument = _seed_instrument(session, sector=sector)
+        _seed_instrument(session, secid="AONE", sector=sector)
+        _seed_instrument(session, secid="BTWO", sector=sector)
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        session.commit()
+    finally:
+        session.close()
+
+    def fake_import_candles(db, secid, date_from, date_to, interval="1d"):
+        imported_secids.append(secid)
+        peer = db.scalar(select(Instrument).where(Instrument.secid == secid))
+        _seed_daily_candle(db, peer, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(db, peer, trading_date=date(2024, 1, 4), close=Decimal("101"))
+        db.commit()
+        return CandleImportResult(
+            secid=secid,
+            interval=interval,
+            date_from=date_from,
+            date_to=date_to,
+            rows_loaded=2,
+            ingestion_run_id=1,
+            status="success",
+        )
+
+    monkeypatch.setattr(key_rate_v2_service, "import_daily_candles", fake_import_candles)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "auto_prepare_sector_data": True,
+            "sector_peer_limit": 1,
+        },
+    )
+
+    sector_comparison = response.json()["sector_comparison"]
+
+    assert response.status_code == 200
+    assert imported_secids == ["AONE"]
+    assert sector_comparison["peers_total"] == 2
+    assert sector_comparison["peers_used"] == 1
+    assert sector_comparison["data_preparation"]["sector_peer_candles_importer_ran_count"] == 1
+    assert sector_comparison["data_preparation"]["sector_peer_candles_rows_loaded"] == 2
+
+
+def test_key_rate_impact_v2_sector_peer_limit_validation(api_client):
+    client, _ = api_client
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={"secid": "SBER", "sector_peer_limit": 0},
+    )
+
+    assert response.status_code == 422
+
+
+def test_key_rate_impact_v2_sector_comparison_uses_daily_candles_only(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        sector = _seed_sector(session)
+        instrument = _seed_instrument(session, sector=sector)
+        peer = _seed_instrument(session, secid="VTBR", sector=sector)
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_intraday_candle(session, peer, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_intraday_candle(session, peer, trading_date=date(2024, 1, 4), close=Decimal("105"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+        },
+    )
+
+    sector_comparison = response.json()["sector_comparison"]
+
+    assert response.status_code == 200
+    assert sector_comparison["status"] == "insufficient_data"
+    assert sector_comparison["peers_skipped"][0]["reason"] == "missing_daily_candles"
 
 
 def test_key_rate_impact_v2_service_auto_prepares_events(api_client, monkeypatch):
@@ -266,11 +512,34 @@ def test_key_rate_impact_v2_uses_daily_price_candles_only(api_client):
     assert data["sample_results"][0]["skipped_reason"] == "no_event_candle"
 
 
-def _seed_instrument(session):
+def _seed_sector(session):
+    sector = session.scalar(select(Sector).where(Sector.code == "finance"))
+    if sector is not None:
+        return sector
+
+    sector = Sector(code="finance", name="Finance", is_active=True)
+    session.add(sector)
+    session.flush()
+    return sector
+
+
+def _seed_instrument(session, *, secid="SBER", sector=None):
+    issuer = None
+    if sector is not None:
+        issuer = Issuer(
+            name=f"{secid} issuer",
+            short_name=f"{secid} issuer",
+            country="RU",
+            is_active=True,
+        )
+        session.add(issuer)
+        session.flush()
+
     instrument = Instrument(
-        secid="SBER",
-        name="Sberbank",
-        short_name="Sberbank",
+        issuer_id=issuer.id if issuer is not None else None,
+        secid=secid,
+        name=f"{secid} company",
+        short_name=f"{secid} company",
         asset_type="share",
         board="TQBR",
         market="shares",
@@ -280,6 +549,17 @@ def _seed_instrument(session):
     )
     session.add(instrument)
     session.flush()
+
+    if issuer is not None:
+        session.add(
+            IssuerSectorHistory(
+                issuer_id=issuer.id,
+                sector_id=sector.id,
+                valid_from=date(2000, 1, 1),
+            ),
+        )
+        session.flush()
+
     return instrument
 
 

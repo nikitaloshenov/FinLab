@@ -114,6 +114,9 @@ def analyze_key_rate_impact_v2_endpoint(
                 horizons=request.horizons,
                 auto_prepare_data=request.auto_prepare_data,
                 refresh_candles=request.refresh_candles,
+                include_sector_comparison=request.include_sector_comparison,
+                sector_peer_limit=request.sector_peer_limit,
+                auto_prepare_sector_data=request.auto_prepare_sector_data,
             )
         )
     except KeyRateV2UnknownInstrumentError as error:

@@ -1776,3 +1776,100 @@ Excluded:
 - frontend changes;
 - scheduled refresh;
 - Docker/deploy changes.
+
+## 17. Sector Comparison v1
+
+Phase 2.5 adds optional sector comparison to the Key Rate Analyzer v2 backend response.
+
+The selected instrument is compared against a limited deterministic peer set from the same sector. This is a peer-based comparison, not a formal sector index.
+
+### 17.1 Sector Resolution
+
+Sector is resolved through:
+
+- selected `instruments` row;
+- selected instrument `issuer_id`;
+- latest/current `issuer_sector_history` row for that issuer;
+- linked `sectors` row.
+
+For v1 the backend uses the latest available issuer-sector mapping. Event-date-aware sector history can be added later if sector membership changes become important for historical studies.
+
+If no mapping exists, the main Key Rate v2 analysis still succeeds and `sector_comparison.status = no_sector_mapping`.
+
+### 17.2 Peer Selection
+
+Peers are selected from instruments whose issuer belongs to the same sector:
+
+- same sector as selected instrument;
+- same `asset_type`;
+- active instruments only;
+- selected instrument excluded;
+- deterministic order by `secid`;
+- limited by request `sector_peer_limit`.
+
+The default peer limit is intentionally small. This prevents accidental full-sector/full-market imports during an interactive analysis request.
+
+### 17.3 Data Sources
+
+Sector comparison uses only v2 daily candles:
+
+- `price_candles.interval = 1d`;
+- daily close prices;
+- same event type/date range/horizons as the selected instrument.
+
+It must not use:
+
+- 10m/intraday chart candles;
+- latest/watchlist prices;
+- saved UI chart data;
+- market benchmark/IMOEX data.
+
+### 17.4 Missing Peer Data
+
+If peer daily candles are missing:
+
+- with `auto_prepare_sector_data = false`, the peer is skipped with `missing_daily_candles`;
+- with `auto_prepare_sector_data = true`, the backend may import daily candles only for the selected limited peer set and required date range;
+- failed peer imports skip that peer and do not fail the main selected-instrument analysis.
+
+The response tracks:
+
+- peers found before limit;
+- peers used after data checks;
+- skipped peers and reasons;
+- peer candle importer run count;
+- peer rows loaded.
+
+### 17.5 Calculation
+
+For each usable peer, v1 applies the same event-study methodology:
+
+- event candle = first daily candle with `trading_date >= event.event_date`;
+- horizon candle = Nth trading candle after the event candle;
+- return = `(horizon_close - event_close) / event_close * 100`.
+
+For each horizon the response includes:
+
+- selected instrument average return;
+- peer/sector average return;
+- peer/sector median return;
+- excess return versus the sector peer average;
+- selected rank among selected instrument plus usable peers;
+- peer count and sector hit rate.
+
+### 17.6 Current Scope
+
+Included:
+
+- optional response field `sector_comparison`;
+- peer-based average/median comparison;
+- bounded on-demand peer candle preparation.
+
+Excluded:
+
+- formal sector index construction;
+- persisted `study_comparisons` cutover;
+- market benchmark/IMOEX;
+- frontend cutover;
+- scheduled sector data refresh;
+- full-market import.

@@ -12,11 +12,19 @@ from app.modules.hypotheses.key_rate_impact_service import (
     KeyRateImpactMainTickerCandlesError,
     analyze_key_rate_impact,
 )
+from app.modules.hypotheses.key_rate_v2_service import (
+    KeyRateV2DataNotPreparedError,
+    KeyRateV2PreparationError,
+    KeyRateV2UnknownInstrumentError,
+    analyze_key_rate_impact_v2,
+)
 from app.modules.hypotheses.schemas import (
     HypothesisAnalyzeRequest,
     KeyRateDecisionListResponse,
     KeyRateEventsListResponse,
     KeyRateImpactAnalyzeRequest,
+    KeyRateImpactV2AnalyzeRequest,
+    KeyRateImpactV2AnalyzeResponse,
 )
 from app.modules.hypotheses.service import analyze_hypothesis
 from app.shared.errors import raise_api_error
@@ -87,5 +95,42 @@ def analyze_key_rate_impact_endpoint(
         raise_api_error(
             status_code=502,
             code="key_rate_impact_market_data_unavailable",
+            message=str(error),
+        )
+
+
+@router.post("/key-rate-impact/v2", response_model=KeyRateImpactV2AnalyzeResponse)
+def analyze_key_rate_impact_v2_endpoint(
+    request: KeyRateImpactV2AnalyzeRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return jsonable_encoder(
+            analyze_key_rate_impact_v2(
+                db,
+                secid=request.secid,
+                date_from=request.date_from,
+                date_to=request.date_to,
+                horizons=request.horizons,
+                auto_prepare_data=request.auto_prepare_data,
+                refresh_candles=request.refresh_candles,
+            )
+        )
+    except KeyRateV2UnknownInstrumentError as error:
+        raise_api_error(
+            status_code=404,
+            code="key_rate_v2_unknown_instrument",
+            message=str(error),
+        )
+    except KeyRateV2DataNotPreparedError as error:
+        raise_api_error(
+            status_code=409,
+            code="key_rate_v2_data_not_prepared",
+            message=str(error),
+        )
+    except KeyRateV2PreparationError as error:
+        raise_api_error(
+            status_code=502,
+            code="key_rate_v2_data_preparation_failed",
             message=str(error),
         )

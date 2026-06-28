@@ -1176,6 +1176,12 @@ td {
   max-width: 100%;
 }
 
+.datePeriodGroup {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .hypothesisPreview span {
   display: block;
   margin-bottom: 7px;
@@ -1273,6 +1279,45 @@ td {
   margin-top: 12px;
 }
 
+.advancedSettings {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fbfcfd;
+}
+
+.advancedSettings summary {
+  cursor: pointer;
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.advancedSettingsBody {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.customDateDetails {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.customDateDetails summary {
+  cursor: pointer;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.customDateDetails .hypothesisGrid {
+  margin-top: 10px;
+}
+
 .hypothesisControlLabel {
   color: var(--muted);
   font-size: 13px;
@@ -1293,6 +1338,10 @@ td {
   gap: 6px;
   min-width: 0;
   max-width: 100%;
+}
+
+.horizonSegment.v2 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .horizonPill {
@@ -1341,6 +1390,10 @@ td {
   justify-content: space-between;
   margin-top: 12px;
   cursor: pointer;
+}
+
+.hypothesisToggle.compact {
+  margin-top: 0;
 }
 
 .hypothesisToggle input {
@@ -1494,6 +1547,10 @@ td {
   box-shadow: none;
 }
 
+.quietResultBlock {
+  padding: 14px 16px;
+}
+
 .resultBlockHeader {
   display: flex;
   align-items: center;
@@ -1534,6 +1591,10 @@ td {
 
 .resultMetricsGrid.compact {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.kpiGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .resultMetric,
@@ -1688,6 +1749,16 @@ td {
   font-weight: 800;
 }
 
+.previewList {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .benchmarkInlineNote {
   margin: -4px 0 0;
   color: var(--muted);
@@ -1700,7 +1771,7 @@ td {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: auto;
   overscroll-behavior-x: contain;
 }
 
@@ -1712,7 +1783,7 @@ td {
 
 .compactTable th,
 .compactTable td {
-  padding: 12px 10px;
+  padding: 11px 9px;
   font-size: 14px;
   white-space: nowrap;
 }
@@ -1728,12 +1799,13 @@ td {
 }
 
 .horizonSummaryTable table {
+  min-width: 620px;
   table-layout: fixed;
 }
 
 .horizonSummaryTable th:nth-child(1),
 .horizonSummaryTable td:nth-child(1) {
-  width: 18%;
+  width: 16%;
 }
 
 .horizonSummaryTable th:nth-child(2),
@@ -1744,12 +1816,73 @@ td {
 .horizonSummaryTable td:nth-child(4),
 .horizonSummaryTable th:nth-child(6),
 .horizonSummaryTable td:nth-child(6) {
-  width: 14%;
+  width: 16%;
 }
 
 .horizonSummaryTable th:nth-child(5),
 .horizonSummaryTable td:nth-child(5) {
-  width: 26%;
+  width: 20%;
+}
+
+.highlightDataRow {
+  background: #f5f7fa;
+}
+
+.peerChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.peerChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sectorCallout {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+.sectorCallout strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.sectorCallout span {
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.sectorCallout p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.sectorSummaryTable table {
+  min-width: 600px;
+  table-layout: fixed;
+}
+
+.compactDetails {
+  margin-top: 12px;
 }
 
 .compactTable td.positive {
@@ -1823,6 +1956,13 @@ td {
   margin-top: 8px;
 }
 
+.eventReturnGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
 .eventDetailsList span {
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -1831,13 +1971,26 @@ td {
   font-size: 13px;
 }
 
+.eventDetailsList span.positive {
+  border-color: #b8dec8;
+  background: var(--positive-bg);
+  color: var(--positive);
+}
+
+.eventDetailsList span.negative {
+  border-color: #f3b7b0;
+  background: var(--negative-bg);
+  color: var(--negative);
+}
+
 @media (max-width: 1120px) {
   .dashboardGrid {
     grid-template-columns: 1fr;
   }
 
   .overviewGrid,
-  .chartStats {
+  .chartStats,
+  .kpiGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -1928,6 +2081,7 @@ td {
   .resultPairGrid,
   .resultMetricsGrid,
   .resultMetricsGrid.compact,
+  .kpiGrid,
   .mechanismGrid,
   .argumentColumns {
     grid-template-columns: 1fr;

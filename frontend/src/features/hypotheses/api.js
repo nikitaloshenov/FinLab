@@ -14,3 +14,10 @@ export function analyzeKeyRateImpact(payload) {
   });
 }
 
+export function analyzeKeyRateImpactV2(payload) {
+  return apiRequest("/hypotheses/key-rate-impact/v2", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+

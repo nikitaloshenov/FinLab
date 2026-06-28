@@ -106,6 +106,15 @@ class KeyRateImpactV2AnalyzeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     secid: str = Field(min_length=1, max_length=32)
+    event_direction: Literal[
+        "all",
+        "hike",
+        "cut",
+        "hold",
+        "rate_hike",
+        "rate_cut",
+        "rate_hold",
+    ] = "all"
     date_from: date | None = None
     date_to: date | None = None
     horizons: list[int] = Field(default_factory=lambda: [1, 5, 10, 20])
@@ -184,12 +193,38 @@ class KeyRateImpactV2DataPreparationResponse(BaseModel):
 
 class KeyRateImpactV2SampleResultResponse(BaseModel):
     event_id: int
+    event_date: date | None = None
+    event_title: str | None = None
     horizon_trading_days: int
     event_price: Decimal | None
     horizon_price: Decimal | None
     return_percent: Decimal | None
     status: str
     skipped_reason: str | None
+
+
+class KeyRateImpactV2EventHorizonResponse(BaseModel):
+    horizon_trading_days: int
+    return_percent: Decimal | None
+    status: str
+    skipped_reason: str | None
+
+
+class KeyRateImpactV2EventResponse(BaseModel):
+    event_id: int
+    event_date: date
+    direction: str | None
+    title: str
+    horizons: list[KeyRateImpactV2EventHorizonResponse] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class KeyRateImpactV2EventsResponse(BaseModel):
+    found_total: int
+    used_total: int
+    skipped_total: int
+    used: list[KeyRateImpactV2EventResponse] = Field(default_factory=list)
+    skipped: list[KeyRateImpactV2EventResponse] = Field(default_factory=list)
 
 
 class KeyRateImpactV2SectorResponse(BaseModel):
@@ -244,6 +279,7 @@ class KeyRateImpactV2AnalyzeResponse(BaseModel):
     secid: str
     instrument: KeyRateImpactV2InstrumentResponse
     event_type: str
+    event_direction: Literal["all", "hike", "cut", "hold"]
     events_total: int
     events_processed: int
     events_skipped: int
@@ -251,6 +287,7 @@ class KeyRateImpactV2AnalyzeResponse(BaseModel):
     summary: list[KeyRateImpactV2SummaryResponse]
     data_preparation: KeyRateImpactV2DataPreparationResponse
     status: str
+    events: KeyRateImpactV2EventsResponse
     sample_results: list[KeyRateImpactV2SampleResultResponse] = Field(default_factory=list)
     sector_comparison: KeyRateImpactV2SectorComparisonResponse | None = None
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { analyzeKeyRateImpact } from "./api.js";
+import { analyzeKeyRateImpactV2 } from "./api.js";
 import { HypothesisResultPanel } from "./HypothesisResultPanel.jsx";
 
 const QUICK_TICKERS = [
@@ -31,24 +31,40 @@ const COMPANY_NAMES = {
   YDEX: "Яндекс",
 };
 
-const DIRECTION_OPTIONS = [
-  { value: "rate_cut", label: "Снижение ставки" },
-  { value: "rate_hike", label: "Повышение ставки" },
-  { value: "rate_hold", label: "Сохранение ставки" },
+const EVENT_DIRECTION_OPTIONS = [
+  { value: "all", label: "Все решения", preview: "после решений ЦБ" },
+  { value: "hike", label: "Повышение ставки", preview: "после повышений ставки" },
+  { value: "cut", label: "Снижение ставки", preview: "после снижений ставки" },
+  { value: "hold", label: "Без изменений", preview: "после сохранения ставки" },
 ];
 
 const HORIZON_OPTIONS = [
   { value: 1, label: "1 торговый день" },
-  { value: 3, label: "3 торговых дня" },
+  { value: 5, label: "5 торговых дней" },
   { value: 10, label: "10 торговых дней" },
 ];
 
+const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_DATE = new Date().toISOString().slice(0, 10);
+const YEAR_OPTIONS = Array.from(
+  { length: Math.max(CURRENT_YEAR, 2026) - 2020 + 1 },
+  (_, index) => 2020 + index,
+);
+
 const DEFAULT_FORM = {
   main_ticker: "SBER",
-  direction: "rate_cut",
-  benchmark_ticker: "",
-  horizons: [1, 3, 10],
-  include_events: false,
+  event_direction: "all",
+  period_start_year: 2024,
+  period_end_year: CURRENT_YEAR,
+  use_custom_dates: false,
+  date_from: "2024-01-01",
+  date_to: CURRENT_YEAR === new Date(CURRENT_DATE).getFullYear() ? CURRENT_DATE : `${CURRENT_YEAR}-12-31`,
+  horizons: [1, 5, 10],
+  auto_prepare_data: true,
+  refresh_candles: false,
+  include_sector_comparison: true,
+  sector_peer_limit: 8,
+  auto_prepare_sector_data: false,
 };
 
 export function HypothesisLabSection({ selectedTicker }) {
@@ -97,9 +113,8 @@ export function HypothesisLabSection({ selectedTicker }) {
     event.preventDefault();
 
     const mainTicker = formData.main_ticker.trim().toUpperCase();
-    const benchmarkTicker = formData.benchmark_ticker
-      ? formData.benchmark_ticker.trim().toUpperCase()
-      : null;
+    const peerLimit = Number(formData.sector_peer_limit) || 8;
+    const selectedDateRange = getSelectedDateRange(formData);
 
     if (!mainTicker) {
       setErrorMessage("Укажите акцию для анализа.");
@@ -111,21 +126,33 @@ export function HypothesisLabSection({ selectedTicker }) {
       return;
     }
 
+    if (
+      selectedDateRange.date_from &&
+      selectedDateRange.date_to &&
+      selectedDateRange.date_from > selectedDateRange.date_to
+    ) {
+      setErrorMessage("Дата начала должна быть раньше даты окончания.");
+      return;
+    }
+
     try {
       setIsLoading(true);
       setErrorMessage("");
 
       const payload = {
-        main_ticker: mainTicker,
-        direction: formData.direction,
-        benchmark_ticker: benchmarkTicker,
+        secid: mainTicker,
+        event_direction: formData.event_direction,
+        date_from: selectedDateRange.date_from || null,
+        date_to: selectedDateRange.date_to || null,
         horizons: formData.horizons,
-        only_official: true,
-        include_events: formData.include_events,
-        max_events: null,
+        auto_prepare_data: formData.auto_prepare_data,
+        refresh_candles: formData.refresh_candles,
+        include_sector_comparison: formData.include_sector_comparison,
+        sector_peer_limit: Math.min(Math.max(peerLimit, 1), 15),
+        auto_prepare_sector_data: formData.auto_prepare_sector_data,
       };
 
-      const data = await analyzeKeyRateImpact(payload);
+      const data = await analyzeKeyRateImpactV2(payload);
 
       setResult(data);
     } catch (error) {
@@ -137,18 +164,22 @@ export function HypothesisLabSection({ selectedTicker }) {
 
   const mainTicker = formData.main_ticker.trim().toUpperCase() || "SBER";
   const companyName = COMPANY_NAMES[mainTicker] || mainTicker;
-  const directionText = getDirectionText(formData.direction);
   const horizonText = formatSelectedHorizons(formData.horizons);
+  const directionOption =
+    EVENT_DIRECTION_OPTIONS.find((option) => option.value === formData.event_direction) ||
+    EVENT_DIRECTION_OPTIONS[0];
+  const selectedDateRange = getSelectedDateRange(formData);
+  const usesCurrentYear = Number(formData.period_end_year) === CURRENT_YEAR;
 
   return (
     <section className="card hypothesisSection">
       <div className="hypothesisHeader">
         <div>
-          <p className="sectionKicker">Key Rate Impact</p>
-          <h2>Анализ реакции на ставку</h2>
+          <p className="sectionKicker">Key Rate Impact v2</p>
+          <h2>Анализ реакции на решения ЦБ</h2>
           <p>
-            Показывает, как выбранная акция исторически реагировала на похожие
-            решения по ключевой ставке.
+            Исторический event-study по дневным свечам: выбранная акция, решения по
+            ключевой ставке, торговые горизонты и сравнение с компаниями сектора.
           </p>
         </div>
       </div>
@@ -167,38 +198,81 @@ export function HypothesisLabSection({ selectedTicker }) {
               />
             </label>
 
-            <label className="hypothesisField">
-              <span>Сценарий решения ЦБ</span>
+            <label className="hypothesisField wide">
+              <span>Тип решения ЦБ</span>
               <select
-                value={formData.direction}
-                onChange={(event) => updateField("direction", event.target.value)}
+                value={formData.event_direction}
+                onChange={(event) => updateField("event_direction", event.target.value)}
               >
-                {DIRECTION_OPTIONS.map((option) => (
+                {EVENT_DIRECTION_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
-
-            <label className="hypothesisField">
-              <span>Бенчмарк</span>
-              <select
-                value={formData.benchmark_ticker}
-                onChange={(event) =>
-                  updateField("benchmark_ticker", event.target.value)
-                }
-              >
-                <option value="">Без бенчмарка</option>
-                <option value="MOEX">MOEX</option>
-              </select>
-            </label>
           </div>
 
-          <p className="hypothesisHint">
-            Бенчмарк нужен только для относительного сравнения. Если не выбран,
-            анализ показывает абсолютную реакцию акции.
-          </p>
+          <div className="datePeriodGroup">
+            <span className="hypothesisControlLabel">Период решений ЦБ</span>
+            <div className="hypothesisGrid">
+              <label className="hypothesisField">
+                <span>С года</span>
+                <select
+                  value={formData.period_start_year}
+                  onChange={(event) => {
+                    const startYear = Number(event.target.value);
+                    setFormData((currentFormData) => ({
+                      ...currentFormData,
+                      period_start_year: startYear,
+                      period_end_year: Math.max(startYear, Number(currentFormData.period_end_year)),
+                      use_custom_dates: false,
+                    }));
+                  }}
+                >
+                  {YEAR_OPTIONS.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="hypothesisField">
+                <span>По год</span>
+                <select
+                  value={formData.period_end_year}
+                  onChange={(event) => {
+                    const endYear = Number(event.target.value);
+                    setFormData((currentFormData) => ({
+                      ...currentFormData,
+                      period_start_year: Math.min(Number(currentFormData.period_start_year), endYear),
+                      period_end_year: endYear,
+                      use_custom_dates: false,
+                    }));
+                  }}
+                >
+                  {YEAR_OPTIONS.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="hypothesisHint">
+              Мы берём решения ЦБ внутри выбранных лет и считаем реакцию акции после
+              каждого события. Диапазон запроса: {selectedDateRange.date_from} —{" "}
+              {selectedDateRange.date_to}.
+            </p>
+            {usesCurrentYear && !formData.use_custom_dates && (
+              <p className="hypothesisHint">
+                Для выбранных горизонтов нужны дневные цены после даты решения ЦБ.
+                Самые свежие события могут быть пропущены, если последующих свечей ещё
+                недостаточно.
+              </p>
+            )}
+          </div>
 
           <div className="hypothesisTickerChips">
             <span>Быстрый выбор акции:</span>
@@ -217,7 +291,7 @@ export function HypothesisLabSection({ selectedTicker }) {
 
           <div className="hypothesisControlGroup">
             <span className="hypothesisControlLabel">Горизонты реакции</span>
-            <div className="horizonSegment">
+            <div className="horizonSegment v2">
               {HORIZON_OPTIONS.map((option) => (
                 <button
                   className={
@@ -227,6 +301,7 @@ export function HypothesisLabSection({ selectedTicker }) {
                   }
                   key={option.value}
                   type="button"
+                  title={option.label}
                   onClick={() => toggleHorizon(option.value)}
                 >
                   {option.value}д
@@ -241,24 +316,123 @@ export function HypothesisLabSection({ selectedTicker }) {
           <label className="hypothesisToggle">
             <input
               type="checkbox"
-              checked={formData.include_events}
+              checked={formData.include_sector_comparison}
               onChange={(event) =>
-                updateField("include_events", event.target.checked)
+                updateField("include_sector_comparison", event.target.checked)
               }
             />
             <span className="toggleSwitch" aria-hidden="true" />
-            <span>Показать исторические события</span>
+            <span>Сравнить с компаниями того же сектора</span>
           </label>
 
+          <details className="advancedSettings">
+            <summary>Дополнительные настройки</summary>
+            <div className="advancedSettingsBody">
+              <label className="hypothesisToggle compact">
+                <input
+                  type="checkbox"
+                  checked={formData.auto_prepare_data}
+                  onChange={(event) =>
+                    updateField("auto_prepare_data", event.target.checked)
+                  }
+                />
+                <span className="toggleSwitch" aria-hidden="true" />
+                <span>Подготовить недостающие события и дневные цены</span>
+              </label>
+
+              <label className="hypothesisToggle compact">
+                <input
+                  type="checkbox"
+                  checked={formData.refresh_candles}
+                  onChange={(event) =>
+                    updateField("refresh_candles", event.target.checked)
+                  }
+                />
+                <span className="toggleSwitch" aria-hidden="true" />
+                <span>Перезагрузить дневные свечи акции</span>
+              </label>
+
+              {formData.include_sector_comparison && (
+                <>
+                  <label className="hypothesisField">
+                    <span>Количество компаний для сравнения</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="15"
+                      value={formData.sector_peer_limit}
+                      onChange={(event) =>
+                        updateField("sector_peer_limit", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="hypothesisToggle compact">
+                    <input
+                      type="checkbox"
+                      checked={formData.auto_prepare_sector_data}
+                      onChange={(event) =>
+                        updateField("auto_prepare_sector_data", event.target.checked)
+                      }
+                    />
+                    <span className="toggleSwitch" aria-hidden="true" />
+                    <span>Догрузить дневные цены компаний сектора</span>
+                  </label>
+                  <p className="hypothesisHint">
+                    По умолчанию данные компаний сектора не догружаются, чтобы не делать
+                    неожиданных запросов к MOEX.
+                  </p>
+                </>
+              )}
+              <details className="customDateDetails">
+                <summary>Указать даты вручную</summary>
+                <div className="hypothesisGrid">
+                  <label className="hypothesisField">
+                    <span>Дата с</span>
+                    <input
+                      type="date"
+                      value={formData.date_from}
+                      onChange={(event) => {
+                        updateField("date_from", event.target.value);
+                        updateField("use_custom_dates", true);
+                      }}
+                    />
+                  </label>
+
+                  <label className="hypothesisField">
+                    <span>Дата по</span>
+                    <input
+                      type="date"
+                      value={formData.date_to}
+                      onChange={(event) => {
+                        updateField("date_to", event.target.value);
+                        updateField("use_custom_dates", true);
+                      }}
+                    />
+                  </label>
+                </div>
+                <label className="hypothesisToggle compact">
+                  <input
+                    type="checkbox"
+                    checked={formData.use_custom_dates}
+                    onChange={(event) =>
+                      updateField("use_custom_dates", event.target.checked)
+                    }
+                  />
+                  <span className="toggleSwitch" aria-hidden="true" />
+                  <span>Использовать ручной диапазон дат</span>
+                </label>
+              </details>
+            </div>
+          </details>
+
           <div className="hypothesisPreview">
-            <span>Проверяемая гипотеза</span>
+            <span>Что проверяем</span>
             <strong>
-              {companyName} и сценарий:{" "}
-              {DIRECTION_OPTIONS.find((item) => item.value === formData.direction)?.label}
+              {companyName} {directionOption.preview}
             </strong>
             <p>
-              Проверяем, как {companyName} исторически реагировал на{" "}
-              {directionText} на горизонтах {horizonText}.
+              Анализируем историческую реакцию на горизонтах {horizonText}. Сравнение с
+              компаниями сектора не является формальным секторным индексом.
             </p>
           </div>
 
@@ -275,9 +449,7 @@ export function HypothesisLabSection({ selectedTicker }) {
               type="submit"
               disabled={isLoading || formData.horizons.length === 0}
             >
-              {isLoading
-                ? "Анализируем..."
-                : "Проанализировать"}
+              {isLoading ? "Анализируем..." : "Запустить анализ"}
             </button>
           </div>
         </form>
@@ -288,35 +460,55 @@ export function HypothesisLabSection({ selectedTicker }) {
   );
 }
 
-function getAnalyzeErrorMessage(error) {
-  if (error?.status === 422) {
-    return "Проверьте тикер и параметры анализа.";
+function getSelectedDateRange(formData) {
+  if (formData.use_custom_dates) {
+    return {
+      date_from: formData.date_from,
+      date_to: formData.date_to,
+    };
   }
 
-  if (
-    error?.code === "key_rate_impact_market_data_unavailable" ||
-    error?.status === 502
-  ) {
-    return "Не удалось получить свечи по выбранному тикеру.";
+  const startYear = Number(formData.period_start_year) || 2024;
+  const endYear = Number(formData.period_end_year) || CURRENT_YEAR;
+
+  return {
+    date_from: `${startYear}-01-01`,
+    date_to: endYear === CURRENT_YEAR ? CURRENT_DATE : `${endYear}-12-31`,
+  };
+}
+
+function getAnalyzeErrorMessage(error) {
+  if (error?.status === 422) {
+    return "Проверьте ticker, даты и параметры анализа.";
+  }
+
+  if (error?.code === "key_rate_v2_unknown_instrument" || error?.status === 404) {
+    return "Инструмент не найден в reference layer. Проверьте ticker.";
+  }
+
+  if (error?.code === "key_rate_v2_data_not_prepared" || error?.status === 409) {
+    return "Нет подготовленных событий или дневных цен. Включите подготовку данных и повторите анализ.";
+  }
+
+  if (error?.code === "key_rate_v2_data_preparation_failed" || error?.status === 502) {
+    return "Не удалось подготовить дневные свечи. Проверьте доступность MOEX/API и повторите позже.";
+  }
+
+  if (error?.code === "network_error" || error?.status === 0) {
+    return "Не удалось подключиться к API. Проверьте, что backend запущен.";
   }
 
   return error?.message || "Не удалось выполнить анализ.";
 }
 
-function getDirectionText(direction) {
-  const labels = {
-    rate_cut: "снижение ключевой ставки",
-    rate_hike: "повышение ключевой ставки",
-    rate_hold: "сохранение ключевой ставки",
-  };
-
-  return labels[direction] || "решения ЦБ по ключевой ставке";
-}
-
 function formatSelectedHorizons(horizons) {
-  return horizons
-    .slice()
-    .sort((left, right) => left - right)
+  const sortedHorizons = horizons.slice().sort((left, right) => left - right);
+
+  if (sortedHorizons.length === 0) {
+    return "не выбраны";
+  }
+
+  return sortedHorizons
     .map((horizon) => `${horizon}`)
     .join(", ")
     .replace(/, ([^,]*)$/, " и $1")

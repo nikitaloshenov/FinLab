@@ -439,8 +439,8 @@ function EventsBlock({ events, fallbackItems }) {
             ))}
           </div>
           <p className="resultHint">
-            Показана часть событий из sample_results. Полный список событий в этом
-            ответе недоступен.
+            Показана часть рассчитанных событий из ответа API. Полный список событий в
+            этом ответе недоступен.
           </p>
         </details>
       </section>
@@ -498,7 +498,7 @@ function CalculatedEventCard({ event }) {
           </span>
         ))}
       </div>
-      {event.hasTechnicalFallback && <p>Технический id: Event #{event.eventId}</p>}
+      {event.hasTechnicalFallback && <p>Технический идентификатор события: {event.eventId}</p>}
     </article>
   );
 }

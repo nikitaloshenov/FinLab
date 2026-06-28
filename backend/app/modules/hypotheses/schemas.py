@@ -117,7 +117,7 @@ class KeyRateImpactV2AnalyzeRequest(BaseModel):
     ] = "all"
     date_from: date | None = None
     date_to: date | None = None
-    horizons: list[int] = Field(default_factory=lambda: [1, 5, 10, 20])
+    horizons: list[int] = Field(default_factory=lambda: [1, 5, 10])
     auto_prepare_data: bool = True
     refresh_candles: bool = False
     include_sector_comparison: bool = True

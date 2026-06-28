@@ -22,7 +22,7 @@ from app.modules.studies.repository import (
 from app.modules.studies.service import EventStudyRunResult, run_event_study
 
 
-DEFAULT_KEY_RATE_V2_HORIZONS = [1, 5, 10, 20]
+DEFAULT_KEY_RATE_V2_HORIZONS = [1, 5, 10]
 MAX_KEY_RATE_V2_HORIZON = 60
 SAMPLE_RESULTS_LIMIT = 5
 PERCENT_QUANT = Decimal("0.000001")
@@ -509,18 +509,30 @@ def _has_daily_candles(
     if required_from is None or required_to is None:
         return False
 
-    candles_count = db.scalar(
-        select(func.count())
-        .select_from(PriceCandle)
-        .where(
+    coverage = db.execute(
+        select(
+            func.count(PriceCandle.id),
+            func.min(PriceCandle.trading_date),
+            func.max(PriceCandle.trading_date),
+        ).where(
             PriceCandle.instrument_id == instrument_id,
             PriceCandle.interval == "1d",
             PriceCandle.trading_date >= required_from,
             PriceCandle.trading_date <= required_to,
         ),
-    )
+    ).one()
+    candles_count, earliest_date, latest_date = coverage
 
-    return bool(candles_count)
+    if not candles_count or earliest_date is None or latest_date is None:
+        return False
+
+    if candles_count < 2:
+        return False
+
+    if earliest_date > required_from + timedelta(days=14):
+        return False
+
+    return True
 
 
 def _build_sector_comparison(
@@ -704,9 +716,18 @@ def _list_sector_peers(
             Instrument.is_active.is_(True),
             Instrument.asset_type == selected_instrument.asset_type,
         )
+        .distinct()
     )
     peers_total = db.scalar(
-        select(func.count()).select_from(base_query.subquery()),
+        select(func.count(func.distinct(Instrument.id)))
+        .select_from(Instrument)
+        .join(IssuerSectorHistory, IssuerSectorHistory.issuer_id == Instrument.issuer_id)
+        .where(
+            IssuerSectorHistory.sector_id == sector_id,
+            Instrument.id != selected_instrument.id,
+            Instrument.is_active.is_(True),
+            Instrument.asset_type == selected_instrument.asset_type,
+        ),
     )
     peers = list(
         db.scalars(

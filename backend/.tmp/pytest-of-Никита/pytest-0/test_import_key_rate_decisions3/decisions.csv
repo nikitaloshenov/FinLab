@@ -1,0 +1,2 @@
+decision_date,meeting_date,effective_date,publication_datetime_msk,rate_before,rate_after,change_bps,direction,title,description,is_scheduled,is_official,source_url,source_type,source_title,source_note,notes
+2026-05-15,2026-05-15,2026-05-19,2026-05-15T13:30:00,16.00,15.50,-50,rate_cut,Key rate decision,Official imported decision.,true,true,https://www.cbr.ru/,official_curated,Bank of Russia decision,Synthetic test row.,Curated official row.

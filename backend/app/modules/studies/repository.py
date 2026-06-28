@@ -48,6 +48,7 @@ def list_events_by_type(
     event_type_id: int,
     date_from: date | None,
     date_to: date | None,
+    direction: str | None = None,
 ) -> list[Event]:
     query = select(Event).where(Event.event_type_id == event_type_id)
 
@@ -55,6 +56,8 @@ def list_events_by_type(
         query = query.where(Event.event_date >= date_from)
     if date_to is not None:
         query = query.where(Event.event_date <= date_to)
+    if direction is not None:
+        query = query.where(Event.direction == direction)
 
     return list(db.scalars(query.order_by(Event.event_date, Event.id)).all())
 

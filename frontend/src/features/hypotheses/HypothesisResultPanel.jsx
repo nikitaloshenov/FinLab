@@ -1,14 +1,12 @@
-const PRIMARY_HORIZONS = new Set([1, 3, 10]);
-
 export function HypothesisResultPanel({ result, isLoading }) {
   if (isLoading && !result) {
     return (
       <div className="hypothesisResult">
         <div className="emptyState hypothesisPlaceholder">
-          <strong>Анализируем исторические решения ЦБ и свечи MOEX...</strong>
+          <strong>Запускаем event-study v2...</strong>
           <p>
-            Сравниваем похожие решения по ключевой ставке с движением выбранной
-            акции на заданных горизонтах.
+            Проверяем решения ЦБ, дневные свечи и при необходимости готовим
+            недостающие данные для выбранной акции.
           </p>
         </div>
       </div>
@@ -19,133 +17,109 @@ export function HypothesisResultPanel({ result, isLoading }) {
     return (
       <div className="hypothesisResult">
         <div className="emptyState hypothesisPlaceholder">
-          <strong>
-            Выберите акцию и сценарий ставки, чтобы проверить историческую
-            реакцию.
-          </strong>
+          <strong>Выберите акцию и период решений ЦБ</strong>
           <p>
-            Результат покажет краткий вывод, выраженный горизонт и реакцию по
-            выбранным периодам.
+            После запуска FinLab покажет среднюю реакцию акции после решений ЦБ,
+            лучший горизонт, долю положительных реакций и сравнение с компаниями
+            сектора.
           </p>
+          <ul className="previewList">
+            <li>Итоговый вывод</li>
+            <li>Реакция по горизонтам</li>
+            <li>Сравнение с компаниями сектора</li>
+            <li>Технические детали данных</li>
+          </ul>
         </div>
       </div>
     );
   }
 
+  if (isV2Result(result)) {
+    return <KeyRateV2Result result={result} />;
+  }
+
+  return <LegacyResultFallback result={result} />;
+}
+
+function KeyRateV2Result({ result }) {
   return (
     <div className="hypothesisResult">
-      <SummaryCard summary={result.summary} />
-      <BestHorizonCard bestHorizon={result.best_horizon} />
-      {!result.benchmark_ticker && (
-        <p className="benchmarkInlineNote">
-          Бенчмарк не выбран — показана абсолютная реакция акции.
-        </p>
-      )}
-      <HorizonSummaryTable items={result.horizon_summary || []} />
-      <BenchmarkSummary result={result} />
-      <DataQualityDetails
-        confidence={result.confidence}
-        skippedSummary={result.skipped_summary}
-        summary={result.summary}
-      />
-      <Limitations limitations={result.limitations || []} />
-      <EventDetails events={result.event_results || []} />
+      <V2VerdictCard result={result} />
+      <KpiRow result={result} />
+      <V2HorizonSummaryTable items={result.summary || []} />
+      <SectorComparisonBlock sectorComparison={result.sector_comparison} />
+      <DataPreparationBlock dataPreparation={result.data_preparation} />
+      <EventsBlock events={result.events} fallbackItems={result.sample_results || []} />
+      <MethodologyNote />
     </div>
   );
 }
 
-function SummaryCard({ summary }) {
-  const title = buildSummaryTitle(summary);
+function V2VerdictCard({ result }) {
+  const instrumentName = result.instrument?.name || result.secid;
+  const directionText = getDirectionTitle(result.event_direction);
+  const bestHorizon = findBestHorizon(result.summary || []);
+  const oneDay = findHorizon(result.summary || [], 1);
+  const title = `${instrumentName} ${directionText.titleSuffix}`;
 
   return (
     <section className="assessmentCard">
-      <span className={`assessmentBadge ${summary?.result_type || ""}`}>
-        {formatResultType(summary?.result_type)}
-      </span>
+      <span className={`assessmentBadge ${result.status || ""}`}>Исторический анализ</span>
       <h3>{title}</h3>
-      <p>{summary?.short_conclusion}</p>
-      <div className="summaryStats">
-        <span>{summary?.events_used || 0} событий проанализировано</span>
-        {(summary?.events_skipped ?? 0) > 0 && (
-          <span>Пропущено: {summary.events_skipped}</span>
-        )}
-      </div>
+      <p>
+        {buildVerdictText({
+          result,
+          bestHorizon,
+          oneDay,
+          directionText,
+        })}
+      </p>
       <p className="resultHint">
-        Историческая реакция не является прогнозом.
+        Это историческое наблюдение, а не прогноз и не инвестиционная рекомендация.
       </p>
     </section>
   );
 }
 
-function DataQualityNotes({ confidence }) {
-  const reasons = confidence?.reasons || [];
-
-  if (reasons.length === 0) {
-    return null;
-  }
+function KpiRow({ result }) {
+  const bestHorizon = findBestHorizon(result.summary || []);
+  const sectorKpi = getSectorKpi(result.sector_comparison);
 
   return (
-    <div className="qualitySummary">
-      <strong>Особенности выборки</strong>
-      <ul className="limitationList">
-        {reasons.slice(0, 3).map((reason) => (
-          <li key={reason}>{formatDataQualityReason(reason)}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function BestHorizonCard({ bestHorizon }) {
-  if (!bestHorizon) {
-    return (
-      <section className="resultBlock primaryResultBlock">
-        <div className="resultBlockHeader">
-          <h3>Выраженный горизонт не найден</h3>
-        </div>
-        <p className="resultHint">
-          Для выбранного сценария недостаточно событий с рыночными данными.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="resultBlock primaryResultBlock">
-      <div className="resultBlockHeader">
-        <h3>Самый выраженный горизонт</h3>
-      </div>
-      <strong className="insightValue">{bestHorizon.horizon_label}</strong>
-      <div className="resultMetricsGrid compact">
-        <Metric
-          label="Средняя"
-          value={formatPercent(bestHorizon.average_return_percent)}
-          tone={getTone(bestHorizon.average_return_percent)}
-        />
-        <Metric
-          label="Медиана"
-          value={formatPercent(bestHorizon.median_return_percent)}
-          tone={getTone(bestHorizon.median_return_percent)}
-        />
-        <Metric label="Событий" value={bestHorizon.events_with_data} />
-      </div>
-      <p className="resultHint">
-        {bestHorizon.typical_effect_label || bestHorizon.typical_effect}.
-        {bestHorizon.reason ? ` ${bestHorizon.reason}` : ""}
-      </p>
+    <section className="resultMetricsGrid kpiGrid">
+      <Metric
+        label="Событий в выборке"
+        value={`${result.events_processed} из ${result.events_total}`}
+      />
+      <Metric
+        label="Лучший горизонт"
+        value={bestHorizon ? `${bestHorizon.horizon_trading_days} торговых дней` : "—"}
+      />
+      <Metric
+        label="Средняя реакция"
+        value={formatPercent(bestHorizon?.average_return_percent)}
+        tone={getTone(bestHorizon?.average_return_percent)}
+      />
+      <Metric
+        label="Доля положительных"
+        value={formatPercent(bestHorizon?.hit_rate_percent)}
+      />
+      <Metric
+        label="Сравнение с сектором"
+        value={sectorKpi.value}
+        tone={sectorKpi.tone}
+      />
     </section>
   );
 }
 
-function HorizonSummaryTable({ items }) {
-  const visibleItems = items.filter((item) => PRIMARY_HORIZONS.has(item.horizon_days));
-
+function V2HorizonSummaryTable({ items }) {
   return (
     <section className="resultBlock horizonTableBlock">
       <div className="resultBlockHeader">
         <h3>Реакция по горизонтам</h3>
       </div>
-      {visibleItems.length === 0 ? (
+      {items.length === 0 ? (
         <p className="resultHint">Нет данных для таблицы горизонтов.</p>
       ) : (
         <div className="tableWrapper compactTable horizonSummaryTable">
@@ -155,28 +129,39 @@ function HorizonSummaryTable({ items }) {
                 <th>Горизонт</th>
                 <th>Средняя</th>
                 <th>Медиана</th>
-                <th>Счёт</th>
-                <th>Эффект</th>
-                <th>Данные</th>
+                <th>Положит.</th>
+                <th>Доля +</th>
+                <th>Событий</th>
               </tr>
             </thead>
             <tbody>
-              {visibleItems.map((item) => (
+              {items.map((item) => (
                 <tr
-                  className={item.events_with_data < 3 ? "mutedDataRow" : undefined}
-                  key={item.horizon_days}
+                  className={item.best_horizon_flag ? "highlightDataRow" : undefined}
+                  key={item.horizon_trading_days}
                 >
-                  <td>{item.horizon_label || `${item.horizon_days} дн.`}</td>
+                  <td>
+                    {item.horizon_trading_days}д
+                    {item.best_horizon_flag && (
+                      <span className="tableSubtext">лучший средний результат</span>
+                    )}
+                  </td>
                   <td className={getTone(item.average_return_percent)}>
                     {formatPercent(item.average_return_percent)}
                   </td>
                   <td className={getTone(item.median_return_percent)}>
                     {formatPercent(item.median_return_percent)}
                   </td>
-                  <td>{formatEventCounts(item)}</td>
-                  <td>{formatEffect(item)}</td>
                   <td>
-                    {item.events_with_data}/{item.events_total}
+                    {item.positive_count}
+                    <span className="tableSubtext">
+                      отриц.: {item.negative_count}, нейтр.: {item.neutral_count}
+                    </span>
+                  </td>
+                  <td>{formatPercent(item.hit_rate_percent)}</td>
+                  <td>
+                    {item.sample_size}
+                    <span className="tableSubtext">пропущено: {item.skipped_count}</span>
                   </td>
                 </tr>
               ))}
@@ -188,147 +173,360 @@ function HorizonSummaryTable({ items }) {
   );
 }
 
-function BenchmarkSummary({ result }) {
-  const benchmarkItems = result.benchmark_summary || [];
-
-  if (!result.benchmark_ticker) {
+function SectorComparisonBlock({ sectorComparison }) {
+  if (!sectorComparison) {
     return null;
+  }
+
+  if (sectorComparison.status === "disabled") {
+    return (
+      <section className="resultBlock secondaryResultBlock quietResultBlock">
+        <p className="resultHint">Сравнение с компаниями сектора отключено.</p>
+      </section>
+    );
   }
 
   return (
     <section className="resultBlock secondaryResultBlock">
       <div className="resultBlockHeader">
-        <h3>Сравнение с бенчмарком</h3>
+        <h3>Сравнение с компаниями сектора</h3>
+        <span>{formatSectorStatus(sectorComparison.status)}</span>
       </div>
-      {benchmarkItems.length > 0 ? (
-        <div className="tableWrapper compactTable">
-          <table>
-            <thead>
-              <tr>
-                <th>Горизонт</th>
-                <th>Бенчмарк</th>
-                <th>Относительно акции</th>
-                <th>Лучше / хуже</th>
-              </tr>
-            </thead>
-            <tbody>
-              {benchmarkItems.map((item) => (
-                <tr key={item.horizon_days}>
-                  <td>{item.horizon_days} дн.</td>
-                  <td className={getTone(item.average_benchmark_return_percent)}>
-                    {formatPercent(item.average_benchmark_return_percent)}
-                  </td>
-                  <td className={getTone(item.average_relative_return_percent)}>
-                    {formatPercent(item.average_relative_return_percent)}
-                    <span className="tableSubtext">
-                      медиана {formatPercent(item.median_relative_return_percent)}
-                    </span>
-                  </td>
-                  <td>
-                    {item.outperformed_count} / {item.underperformed_count}
-                    <span className="tableSubtext">
-                      лучше: {formatPercent(item.outperformed_share_percent)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+      {sectorComparison.status === "success" ? (
+        <>
+          <SectorInsight sectorComparison={sectorComparison} />
+          <PeerList peerSecids={sectorComparison.peer_secids || []} />
+          <SectorSummaryTable items={sectorComparison.summary || []} />
+        </>
       ) : (
-        <p className="resultHint">Сравнение с бенчмарком недоступно.</p>
+        <SectorEmptyState sectorComparison={sectorComparison} />
+      )}
+
+      <SkippedPeers peers={sectorComparison.peers_skipped || []} />
+      <SectorDataPreparation dataPreparation={sectorComparison.data_preparation} />
+    </section>
+  );
+}
+
+function SectorInsight({ sectorComparison }) {
+  const best = findBestSectorSummary(sectorComparison.summary || []);
+  const sectorName = formatSectorName(
+    sectorComparison.sector?.name || sectorComparison.sector?.code || "сектор",
+  );
+
+  if (!best || best.excess_return_percent === null || best.excess_return_percent === undefined) {
+    return (
+      <p className="resultHint">
+        Сектор: {sectorName}. Использовано компаний сектора: {sectorComparison.peers_used} из{" "}
+        {sectorComparison.peers_total}.
+      </p>
+    );
+  }
+
+  const excess = Number(best.excess_return_percent);
+  const relation = excess >= 0 ? "лучше" : "хуже";
+  const verdict =
+    excess >= 0
+      ? `Опережение сектора: ${formatPercent(best.excess_return_percent)} п.п.`
+      : `Отставание от сектора: ${formatPercent(best.excess_return_percent)} п.п.`;
+
+  return (
+    <div className="sectorCallout">
+      <span>{verdict}</span>
+      <strong>
+        На горизонте {best.horizon_trading_days}д акция была {relation} среднего по
+        сектору на {formatPercent(Math.abs(excess))} п.п.
+      </strong>
+      <p>
+        Сектор: {sectorName}. Использовано компаний сектора: {sectorComparison.peers_used} из{" "}
+        {sectorComparison.peers_total}.
+      </p>
+    </div>
+  );
+}
+
+function SectorSummaryTable({ items }) {
+  if (items.length === 0) {
+    return <p className="resultHint">Нет расчетных строк по сектору.</p>;
+  }
+
+  return (
+    <div className="tableWrapper compactTable sectorSummaryTable">
+      <table>
+        <thead>
+          <tr>
+            <th>Горизонт</th>
+            <th>Акция</th>
+            <th>Сектор</th>
+            <th>Разница</th>
+            <th>Компаний</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.horizon_trading_days}>
+              <td>{item.horizon_trading_days}д</td>
+              <td className={getTone(item.selected_average_return_percent)}>
+                {formatPercent(item.selected_average_return_percent)}
+              </td>
+              <td className={getTone(item.sector_average_return_percent)}>
+                {formatPercent(item.sector_average_return_percent)}
+                <span className="tableSubtext">
+                  медиана: {formatPercent(item.sector_median_return_percent)}
+                </span>
+              </td>
+              <td className={getTone(item.excess_return_percent)}>
+                {formatPercent(item.excess_return_percent)}
+              </td>
+              <td>
+                {item.sector_instrument_count || "—"}
+                <span className="tableSubtext">
+                  доля +: {formatPercent(item.sector_hit_rate_percent)}
+                </span>
+                {item.selected_rank_in_sector && (
+                  <span className="tableSubtext">
+                    позиция: {item.selected_rank_in_sector}
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SectorEmptyState({ sectorComparison }) {
+  const messages = {
+    insufficient_data:
+      "Сектор найден, но по компаниям сектора пока не хватает дневных цен для сравнения. Можно включить догрузку данных компаний сектора в дополнительных настройках.",
+    no_sector_mapping:
+      "Для этой акции пока не указан сектор в справочнике FinLab. Основной анализ рассчитан, но сравнение с компаниями сектора недоступно.",
+    no_peers: "Для этого сектора пока не найдено подходящих компаний для сравнения.",
+  };
+
+  return (
+    <p className="resultHint">
+      {messages[sectorComparison.status] || "Сравнение с компаниями сектора недоступно."}
+    </p>
+  );
+}
+
+function PeerList({ peerSecids }) {
+  if (peerSecids.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="peerChipList" aria-label="Компании сектора">
+      {peerSecids.map((secid) => (
+        <span className="peerChip" key={secid}>
+          {secid}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function SkippedPeers({ peers }) {
+  if (peers.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className="eventDetails compactDetails">
+      <summary>Пропущенные компании сектора</summary>
+      <ul className="limitationList detailsList">
+        {peers.map((peer) => (
+          <li key={`${peer.secid}-${peer.reason}`}>
+            {peer.secid}: {formatPeerSkipReason(peer.reason)}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function SectorDataPreparation({ dataPreparation }) {
+  if (!dataPreparation) {
+    return null;
+  }
+
+  return (
+    <p className="resultHint">
+      Догрузка компаний сектора: запусков{" "}
+      {dataPreparation.sector_peer_candles_importer_ran_count}, строк загружено:{" "}
+      {dataPreparation.sector_peer_candles_rows_loaded}, пропущено из-за данных:{" "}
+      {dataPreparation.peers_skipped_due_to_missing_data}.
+    </p>
+  );
+}
+
+function DataPreparationBlock({ dataPreparation }) {
+  if (!dataPreparation) {
+    return null;
+  }
+
+  const preparedText =
+    dataPreparation.key_rate_events_importer_ran || dataPreparation.candles_importer_ran
+      ? "Дневные цены или события были подготовлены во время запроса."
+      : "Данные уже были готовы для анализа.";
+
+  return (
+    <section className="resultBlock secondaryResultBlock quietResultBlock">
+      <details className="eventDetails">
+        <summary>Технические детали подготовки данных</summary>
+        <div className="detailsBody">
+          <p className="resultHint">{preparedText}</p>
+          <div className="resultMetricsGrid compact">
+            <Metric
+              label="События готовы"
+              value={formatBoolean(dataPreparation.key_rate_events_ready)}
+            />
+            <Metric
+              label="Импорт событий"
+              value={formatBoolean(dataPreparation.key_rate_events_importer_ran)}
+            />
+            <Metric
+              label="Дневные цены готовы"
+              value={formatBoolean(dataPreparation.candles_ready)}
+            />
+            <Metric
+              label="Импорт дневных цен"
+              value={formatBoolean(dataPreparation.candles_importer_ran)}
+            />
+            <Metric label="Строк загружено" value={dataPreparation.candles_rows_loaded} />
+            <Metric
+              label="Технический диапазон цен"
+              value={`${dataPreparation.required_from || "—"} — ${
+                dataPreparation.required_to || "—"
+              }`}
+            />
+          </div>
+          <p className="resultHint">
+            Диапазон данных может быть шире периода решений ЦБ, потому что для расчёта
+            выбранных горизонтов используются дневные свечи после даты последнего
+            события.
+          </p>
+          <p className="resultHint">
+            Для выбранных горизонтов нужны дневные цены после даты решения ЦБ. Самые
+            свежие события могут быть пропущены, если последующих свечей ещё
+            недостаточно.
+          </p>
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function EventsBlock({ events, fallbackItems }) {
+  if (!events && fallbackItems.length === 0) {
+    return null;
+  }
+
+  if (!events) {
+    const groupedEvents = groupSampleResults(fallbackItems);
+
+    return (
+      <section className="resultBlock secondaryResultBlock quietResultBlock">
+        <details className="eventDetails">
+          <summary>Примеры рассчитанных событий</summary>
+          <div className="eventDetailsList">
+            {groupedEvents.map((event) => (
+              <CalculatedEventCard event={event} key={event.key} />
+            ))}
+          </div>
+          <p className="resultHint">
+            Показана часть рассчитанных событий из ответа API. Полный список событий в
+            этом ответе недоступен.
+          </p>
+        </details>
+      </section>
+    );
+  }
+
+  return (
+    <section className="resultBlock secondaryResultBlock quietResultBlock">
+      <details className="eventDetails">
+        <summary>Решения ЦБ в расчёте</summary>
+        <div className="eventDetailsList">
+          {(events.used || []).map((event) => (
+            <CalculatedEventCard event={normalizeApiEvent(event)} key={event.event_id} />
+          ))}
+        </div>
+        <p className="resultHint">
+          Использовано {events.used_total} из {events.found_total} найденных решений ЦБ.
+        </p>
+      </details>
+      {(events.skipped || []).length > 0 && (
+        <details className="eventDetails compactDetails">
+          <summary>Пропущенные решения ЦБ</summary>
+          <div className="eventDetailsList">
+            {events.skipped.map((event) => (
+              <article key={event.event_id}>
+                <strong>{formatEventTitle(event)}</strong>
+                <p>Пропущено: {formatSkipReason(event.reason)}</p>
+              </article>
+            ))}
+          </div>
+          <p className="resultHint">
+            Часть свежих событий может быть пропущена, если для выбранных горизонтов ещё
+            нет последующих дневных свечей.
+          </p>
+        </details>
       )}
     </section>
   );
 }
 
-function DataQualityDetails({ confidence, skippedSummary, summary }) {
-  const reasons = skippedSummary?.reasons || [];
-  const analyzed = summary?.events_used || 0;
-  const total = summary?.events_total || 0;
-  const skipped = skippedSummary?.skipped_total ?? summary?.events_skipped ?? 0;
-
+function CalculatedEventCard({ event }) {
   return (
-    <section className="resultBlock secondaryResultBlock qualityBlock">
-      <details className="eventDetails">
-        <summary>Качество данных</summary>
-        <div className="detailsBody">
-          <DataQualityNotes confidence={confidence} />
-          <p className="resultHint">
-            Проанализировано: {analyzed} из {total} событий. Пропущено: {skipped}.
-          </p>
-          {reasons.length > 0 && (
-            <ul className="limitationList">
-              {reasons.map((item) => (
-                <li key={item.reason}>
-                  {formatSkipReason(item.reason)}: {item.count}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </details>
+    <article>
+      <strong>{event.title}</strong>
+      <div className="eventReturnGrid">
+        {event.horizons.map((item) => (
+          <span
+            className={getTone(item.return_percent)}
+            key={`${event.key}-${item.horizon_trading_days}`}
+          >
+            {item.horizon_trading_days}д:{" "}
+            {item.status === "success"
+              ? formatPercent(item.return_percent)
+              : formatSkipReason(item.skipped_reason)}
+          </span>
+        ))}
+      </div>
+      {event.hasTechnicalFallback && <p>Технический идентификатор события: {event.eventId}</p>}
+    </article>
+  );
+}
+
+function MethodologyNote() {
+  return (
+    <section className="resultBlock secondaryResultBlock quietResultBlock">
+      <p className="resultHint">
+        Методология: событие привязывается к первой дневной свече с датой не раньше
+        решения ЦБ; горизонт — N торговых дней после события. Сравнение с компаниями
+        сектора считает среднее/медиану по акциям того же сектора, а не формальный индекс.
+      </p>
     </section>
   );
 }
 
-function Limitations({ limitations }) {
+function LegacyResultFallback({ result }) {
   return (
-    <section className="resultBlock secondaryResultBlock">
-      <details className="eventDetails">
-        <summary>Ограничения анализа</summary>
-        <ul className="limitationList detailsList">
-          {buildLimitations(limitations).map((limitation) => (
-            <li key={limitation}>{limitation}</li>
-          ))}
-        </ul>
-      </details>
-    </section>
-  );
-}
-
-function EventDetails({ events }) {
-  if (events.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="resultBlock secondaryResultBlock">
-      <details className="eventDetails">
-        <summary>Исторические события</summary>
-        <div className="eventDetailsList">
-          {events.map((event) => (
-            <article key={`${event.decision_date}-${event.direction}`}>
-              <strong>{event.decision_date}</strong>
-              <p>
-                Решение ЦБ: {formatEventDirection(event.direction)}
-                {event.change_bps !== null && event.change_bps !== undefined
-                  ? ` / ${event.change_bps} б.п.`
-                  : ""}
-                {formatEventStatus(event.status)
-                  ? ` / ${formatEventStatus(event.status)}`
-                  : ""}
-              </p>
-              <p>
-                Ставка: {event.rate_before ?? "-"} → {event.rate_after ?? "-"}
-                {event.skip_reason ? ` / ${formatSkipReason(event.skip_reason)}` : ""}
-              </p>
-              <div>
-                {(event.horizons || []).map((horizon) => (
-                  <span key={horizon.horizon_days}>
-                    Реакция акции {horizon.horizon_days}д:{" "}
-                    {formatPercent(horizon.stock_return_percent)}
-                    {horizon.skip_reason
-                      ? ` / ${formatSkipReason(horizon.skip_reason)}`
-                      : ""}
-                  </span>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      </details>
-    </section>
+    <div className="hypothesisResult">
+      <section className="assessmentCard">
+        <span className="assessmentBadge">Legacy result</span>
+        <h3>{result?.summary?.company_name || result?.main_ticker || "Key Rate Analyzer"}</h3>
+        <p>
+          Получен legacy-ответ. Для нового анализа используйте v2 endpoint с дневными
+          свечами и event-study результатами.
+        </p>
+      </section>
+    </div>
   );
 }
 
@@ -338,39 +536,237 @@ function Metric({ label, value, tone }) {
   return (
     <div className={className}>
       <span>{label}</span>
-      <strong>{value ?? "-"}</strong>
+      <strong>{value ?? "—"}</strong>
     </div>
   );
 }
 
-function buildSummaryTitle(summary) {
-  if (!summary) {
-    return "Историческая реакция";
+function buildVerdictText({ result, bestHorizon, oneDay, directionText }) {
+  const eventsInfo = result.events;
+  const foundTotal = eventsInfo?.found_total ?? result.events_total;
+  const usedTotal = eventsInfo?.used_total ?? result.events_processed;
+  const skippedTotal = eventsInfo?.skipped_total ?? result.events_skipped;
+  const eventsText = `За выбранный период найдено ${foundTotal} ${pluralizeEvent(
+    foundTotal,
+  )}.`;
+  const processedText =
+    skippedTotal > 0
+      ? ` В расчёте использовано ${usedTotal}, пропущено ${skippedTotal} из-за нехватки дневных цен для выбранных горизонтов.`
+      : " Все найденные решения использованы в расчёте.";
+
+  if (!bestHorizon) {
+    return `${eventsText}${processedText} По выбранным горизонтам пока недостаточно данных для устойчивого вывода.`;
   }
 
-  return `${summary.company_name || summary.main_ticker} после ${formatDirectionForTitle(
-    summary.direction,
-    summary.direction_label,
-  )}`;
+  const oneDayText = oneDay
+    ? ` На следующий торговый день средняя реакция составила ${formatPercent(
+        oneDay.average_return_percent,
+      )}.`
+    : "";
+
+  return `${eventsText}${processedText} ${directionText.sentencePrefix} лучший средний результат был на горизонте ${bestHorizon.horizon_trading_days} торговых дней: ${formatPercent(bestHorizon.average_return_percent)}.${oneDayText}`;
 }
 
-function formatDirectionForTitle(direction, fallbackLabel) {
+function getSectorKpi(sectorComparison) {
+  if (!sectorComparison) {
+    return { value: "—" };
+  }
+
+  if (sectorComparison.status === "disabled") {
+    return { value: "Отключено" };
+  }
+
+  if (sectorComparison.status === "no_sector_mapping") {
+    return { value: "Сектор не найден" };
+  }
+
+  if (sectorComparison.status === "insufficient_data") {
+    return { value: "Недостаточно данных" };
+  }
+
+  if (sectorComparison.status === "no_peers") {
+    return { value: "Нет компаний" };
+  }
+
+  const best = findBestSectorSummary(sectorComparison.summary || []);
+  if (!best || best.excess_return_percent === null || best.excess_return_percent === undefined) {
+    return { value: "Нет расчёта" };
+  }
+
+  const excess = Number(best.excess_return_percent);
+  return {
+    value:
+      excess >= 0
+        ? `Опережение: ${formatPercent(best.excess_return_percent)} п.п.`
+        : `Отставание: ${formatPercent(best.excess_return_percent)} п.п.`,
+    tone: excess >= 0 ? "positive" : "negative",
+  };
+}
+
+function findBestHorizon(items) {
+  return (
+    items.find((item) => item.best_horizon_flag) ||
+    items
+      .filter((item) => item.average_return_percent !== null && item.average_return_percent !== undefined)
+      .sort(
+        (left, right) =>
+          Number(right.average_return_percent) - Number(left.average_return_percent),
+      )[0]
+  );
+}
+
+function findHorizon(items, horizon) {
+  return items.find((item) => item.horizon_trading_days === horizon);
+}
+
+function findBestSectorSummary(items) {
+  return items
+    .filter((item) => item.excess_return_percent !== null && item.excess_return_percent !== undefined)
+    .sort(
+      (left, right) =>
+        Math.abs(Number(right.excess_return_percent)) -
+        Math.abs(Number(left.excess_return_percent)),
+    )[0];
+}
+
+function getDirectionTitle(value) {
   const labels = {
-    rate_cut: "снижения ключевой ставки",
-    rate_hike: "повышения ключевой ставки",
-    rate_hold: "сохранения ключевой ставки",
+    hike: {
+      titleSuffix: "после повышений ключевой ставки",
+      sentencePrefix: "После повышений ключевой ставки",
+    },
+    cut: {
+      titleSuffix: "после снижений ключевой ставки",
+      sentencePrefix: "После снижений ключевой ставки",
+    },
+    hold: {
+      titleSuffix: "после сохранения ключевой ставки",
+      sentencePrefix: "После сохранения ставки без изменений",
+    },
+    all: {
+      titleSuffix: "после решений ЦБ",
+      sentencePrefix: "По всем решениям ЦБ",
+    },
   };
 
-  return (
-    labels[direction] ||
-    fallbackLabel?.toLocaleLowerCase("ru-RU") ||
-    "решения по ключевой ставке"
-  );
+  return labels[value] || labels.all;
+}
+
+function pluralizeEvent(count) {
+  const normalizedCount = Math.abs(Number(count)) % 100;
+  const lastDigit = normalizedCount % 10;
+
+  if (normalizedCount > 10 && normalizedCount < 20) {
+    return "решений ЦБ";
+  }
+
+  if (lastDigit === 1) {
+    return "решение ЦБ";
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return "решения ЦБ";
+  }
+
+  return "решений ЦБ";
+}
+
+function formatDate(value) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function groupSampleResults(items) {
+  const grouped = new Map();
+
+  for (const item of items) {
+    const key = item.event_date || `event-${item.event_id}`;
+    const existing = grouped.get(key) || {
+      key,
+      eventId: item.event_id,
+      hasTechnicalFallback: !item.event_date,
+      title: item.event_date
+        ? `Решение ЦБ от ${formatDate(item.event_date)}`
+        : `Событие #${item.event_id}`,
+      horizons: [],
+    };
+
+    existing.horizons.push(item);
+    grouped.set(key, existing);
+  }
+
+  return Array.from(grouped.values())
+    .map((event) => ({
+      ...event,
+      horizons: event.horizons
+        .slice()
+        .sort((left, right) => left.horizon_trading_days - right.horizon_trading_days),
+    }))
+    .slice(0, 5);
+}
+
+function normalizeApiEvent(event) {
+  return {
+    key: `event-${event.event_id}`,
+    eventId: event.event_id,
+    hasTechnicalFallback: !event.event_date,
+    title: formatEventTitle(event),
+    horizons: (event.horizons || [])
+      .slice()
+      .sort((left, right) => left.horizon_trading_days - right.horizon_trading_days),
+  };
+}
+
+function formatEventTitle(event) {
+  const dateText = event.event_date ? formatDate(event.event_date) : `#${event.event_id}`;
+  const directionText = formatEventDirection(event.direction);
+
+  return directionText
+    ? `${dateText} — ${directionText}`
+    : `Решение ЦБ от ${dateText}`;
+}
+
+function formatEventDirection(value) {
+  const labels = {
+    hike: "повышение ставки",
+    cut: "снижение ставки",
+    hold: "без изменений",
+    rate_hike: "повышение ставки",
+    rate_cut: "снижение ставки",
+    rate_hold: "без изменений",
+  };
+
+  return labels[value] || "";
+}
+
+function formatSectorName(value) {
+  const labels = {
+    Finance: "Финансы",
+    finance: "Финансы",
+    Banks: "Банки",
+    banks: "Банки",
+    "Oil & Gas": "Нефтегаз",
+    OilGas: "Нефтегаз",
+    oil_gas: "Нефтегаз",
+    Technology: "Технологии",
+    technology: "Технологии",
+    Transport: "Транспорт",
+    transport: "Транспорт",
+  };
+
+  return labels[value] || value;
 }
 
 function formatPercent(value) {
   if (value === null || value === undefined || value === "") {
-    return "-";
+    return "—";
   }
 
   const numberValue = Number(value);
@@ -387,213 +783,43 @@ function formatPercent(value) {
   }).format(numberValue)}%`;
 }
 
-function formatResultType(value) {
+function formatBoolean(value) {
+  return value ? "Да" : "Нет";
+}
+
+function formatSectorStatus(value) {
   const labels = {
-    positive: "Чаще рост",
-    negative: "Чаще снижение",
-    neutral: "Нейтрально",
-    mixed: "Смешанная реакция",
-    insufficient_data: "Недостаточно данных",
+    success: "готово",
+    disabled: "отключено",
+    no_sector_mapping: "сектор не найден",
+    no_peers: "нет компаний",
+    insufficient_data: "недостаточно данных",
   };
 
-  return labels[value] || "Исторический анализ";
+  return labels[value] || value || "—";
 }
 
-function formatEventCounts(item) {
-  return `${item.positive_count}/${item.negative_count}/${item.neutral_count}`;
-}
-
-function formatEffect(item) {
-  if (
-    item.events_with_data < 3 ||
-    item.typical_effect === "insufficient_data" ||
-    item.typical_direction === "insufficient_data"
-  ) {
-    return "отдельные наблюдения";
-  }
-
-  const effect = formatEffectLabel(item.typical_effect_label || item.typical_effect);
-  const direction = formatDirectionLabel(
-    item.typical_direction_label || item.typical_direction,
-  );
-
-  if (!effect && !direction) {
-    return "-";
-  }
-
-  if (!effect || effect === direction) {
-    return direction || effect;
-  }
-
-  if (!direction || direction === "нейтрально" || direction === "neutral") {
-    return effect;
-  }
-
-  return `${effect}, ${direction}`;
-}
-
-function formatEffectLabel(value) {
+function formatPeerSkipReason(value) {
   const labels = {
-    market_noise: "рыночный шум",
-    weak_growth: "слабый рост",
-    moderate_growth: "умеренный рост",
-    strong_growth: "сильный рост",
-    weak_decline: "слабое падение",
-    moderate_decline: "умеренное падение",
-    strong_decline: "сильное падение",
-    weak_positive: "слабый рост",
-    weak_negative: "слабое падение",
-    strong_positive: "заметный рост",
-    strong_negative: "заметное падение",
-    mixed: "смешанно",
-    neutral: "шум",
-    noise: "шум",
-    insufficient_data: "отдельные наблюдения",
+    missing_daily_candles: "нет дневных свечей",
+    insufficient_event_data: "недостаточно событий с данными",
+    candle_import_failed: "ошибка загрузки свечей",
   };
 
-  return labels[value] || formatUnknownTechnicalValue(value);
-}
-
-function formatDirectionLabel(value) {
-  const labels = {
-    positive: "рост",
-    negative: "падение",
-    neutral: "нейтр.",
-    mixed: "смешанно",
-    insufficient_data: "отдельные наблюдения",
-  };
-
-  return labels[value] || formatUnknownTechnicalValue(value);
-}
-
-function buildLimitations(limitations) {
-  const defaults = [
-    "Историческая реакция не является прогнозом.",
-    "Корреляция не доказывает причинно-следственную связь.",
-    "Дивиденды, корпоративные события и новости могут влиять на результат.",
-    "Часть событий может быть пропущена из-за отсутствия рыночных данных.",
-  ];
-
-  if (!limitations?.length) {
-    return defaults;
-  }
-
-  return [...new Set([...defaults, ...limitations.map(formatLimitation)])].slice(0, 4);
-}
-
-function formatLimitation(value) {
-  const normalizedValue = String(value || "").trim();
-  const exactLabels = {
-    "Historical reaction is not a forecast.":
-      "Историческая реакция не является прогнозом.",
-    "Historical reaction does not prove causality.":
-      "Историческая реакция не доказывает причинно-следственную связь.",
-    "Corporate actions and dividends may affect interpretation.":
-      "Дивиденды, корпоративные события и новости могут влиять на результат.",
-    "Some events were skipped because of missing candles.":
-      "Часть событий может быть пропущена из-за отсутствия свечей.",
-    "Some events are marked as extraordinary or market disruption.":
-      "В выборке есть нестандартные рыночные события.",
-    "Small number of events limits confidence.":
-      "Малое количество событий снижает уверенность анализа.",
-    "Benchmark comparison was unavailable or incomplete.":
-      "Сравнение с бенчмарком недоступно или неполное.",
-  };
-
-  if (exactLabels[normalizedValue]) {
-    return exactLabels[normalizedValue];
-  }
-
-  const lowerValue = normalizedValue.toLowerCase();
-
-  if (lowerValue.includes("forecast")) {
-    return "Историческая реакция не является прогнозом.";
-  }
-
-  if (lowerValue.includes("causality") || lowerValue.includes("correlation")) {
-    return "Корреляция не доказывает причинно-следственную связь.";
-  }
-
-  if (lowerValue.includes("corporate")) {
-    return "Дивиденды, корпоративные события и новости могут влиять на результат.";
-  }
-
-  if (lowerValue.includes("missing") || lowerValue.includes("candle")) {
-    return "Часть событий может быть пропущена из-за отсутствия рыночных данных.";
-  }
-
-  return value;
-}
-
-function formatDataQualityReason(value) {
-  const normalizedValue = String(value || "").trim();
-  const lowerValue = normalizedValue.toLowerCase();
-
-  if (lowerValue.includes("small number") || lowerValue.includes("few events")) {
-    return "Малое количество событий ограничивает интерпретацию результата.";
-  }
-
-  if (lowerValue.includes("extraordinary") || lowerValue.includes("disruption")) {
-    return "В датасете есть нестандартные рыночные события.";
-  }
-
-  if (lowerValue.includes("missing") || lowerValue.includes("candle")) {
-    return "Часть событий может быть пропущена из-за отсутствия рыночных данных.";
-  }
-
-  return normalizedValue
-    .replace(/confidence/gi, "интерпретацию")
-    .replace(/low/gi, "ограниченную");
-}
-
-function formatEventDirection(value) {
-  const labels = {
-    rate_cut: "снижение ставки",
-    rate_hike: "повышение ставки",
-    rate_hold: "ставка без изменений",
-  };
-
-  return labels[value] || formatUnknownTechnicalValue(value);
-}
-
-function formatEventStatus(value) {
-  const labels = {
-    ok: "",
-    skipped: "пропущено",
-    partial: "частично",
-    market_disruption: "рыночный шок",
-    extraordinary: "нестандартное событие",
-  };
-
-  return labels[value] ?? formatUnknownTechnicalValue(value);
+  return labels[value] || value || "причина не определена";
 }
 
 function formatSkipReason(value) {
   const labels = {
-    missing_event_candle: "нет свечи события",
-    missing_horizon_candle: "нет свечи на горизонте",
-    empty_candles: "нет свечей по тикеру",
-    invalid_price: "некорректная цена",
-    baseline_not_found: "нет базовой свечи",
-    horizon_not_found: "нет свечи на горизонте",
-    event_trading_day_not_found: "нет торгового дня события",
-    horizon_candle_not_found: "нет свечи горизонта",
-    some_horizons_missing: "часть горизонтов недоступна",
-    invalid_decision_date: "некорректная дата решения",
-    unknown: "причина не определена",
+    no_event_candle: "не найдена дневная свеча на дату события или после неё",
+    invalid_event_price: "некорректная цена события",
+    no_horizon_candles:
+      "не хватает дневных свечей после события для выбранного горизонта",
+    invalid_horizon_price: "некорректная цена горизонта",
+    no_events_found: "события не найдены",
   };
 
-  return labels[value] || "причина не определена";
-}
-
-function formatUnknownTechnicalValue(value) {
-  if (value === null || value === undefined || value === "") {
-    return "-";
-  }
-
-  return String(value).includes("_")
-    ? String(value).replaceAll("_", " ")
-    : String(value);
+  return labels[value] || value || "причина не определена";
 }
 
 function getTone(value) {
@@ -604,4 +830,8 @@ function getTone(value) {
   }
 
   return numberValue > 0 ? "positive" : "negative";
+}
+
+function isV2Result(result) {
+  return Boolean(result?.data_preparation && Array.isArray(result?.summary));
 }

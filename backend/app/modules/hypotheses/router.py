@@ -112,6 +112,7 @@ def analyze_key_rate_impact_v2_endpoint(
                 date_from=request.date_from,
                 date_to=request.date_to,
                 horizons=request.horizons,
+                event_direction=request.event_direction,
                 auto_prepare_data=request.auto_prepare_data,
                 refresh_candles=request.refresh_candles,
                 include_sector_comparison=request.include_sector_comparison,

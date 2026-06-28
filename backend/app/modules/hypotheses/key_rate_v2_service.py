@@ -8,6 +8,7 @@ from statistics import median
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.events.models import Event
 from app.modules.events.service import KEY_RATE_EVENT_TYPE_CODE, import_key_rate_decisions_to_events
 from app.modules.market_data.models import PriceCandle
 from app.modules.market_data.service import CandleImportResult, import_daily_candles
@@ -71,12 +72,41 @@ class KeyRateV2DataPreparationInfo:
 @dataclass
 class KeyRateV2SampleResult:
     event_id: int
+    event_date: date | None
+    event_title: str | None
     horizon_trading_days: int
     event_price: Decimal | None
     horizon_price: Decimal | None
     return_percent: Decimal | None
     status: str
     skipped_reason: str | None
+
+
+@dataclass
+class KeyRateV2EventHorizonResult:
+    horizon_trading_days: int
+    return_percent: Decimal | None
+    status: str
+    skipped_reason: str | None
+
+
+@dataclass
+class KeyRateV2EventResult:
+    event_id: int
+    event_date: date
+    direction: str | None
+    title: str
+    horizons: list[KeyRateV2EventHorizonResult] = field(default_factory=list)
+    reason: str | None = None
+
+
+@dataclass
+class KeyRateV2EventsInfo:
+    found_total: int
+    used_total: int
+    skipped_total: int
+    used: list[KeyRateV2EventResult] = field(default_factory=list)
+    skipped: list[KeyRateV2EventResult] = field(default_factory=list)
 
 
 @dataclass
@@ -125,6 +155,7 @@ class KeyRateV2AnalyzeResult:
     secid: str
     instrument: KeyRateV2InstrumentInfo
     event_type: str
+    event_direction: str
     events_total: int
     events_processed: int
     events_skipped: int
@@ -132,6 +163,7 @@ class KeyRateV2AnalyzeResult:
     summary: list
     data_preparation: KeyRateV2DataPreparationInfo
     status: str
+    events: KeyRateV2EventsInfo
     sample_results: list[KeyRateV2SampleResult] = field(default_factory=list)
     sector_comparison: KeyRateV2SectorComparison | None = None
 
@@ -148,8 +180,13 @@ def analyze_key_rate_impact_v2(
     include_sector_comparison: bool = True,
     sector_peer_limit: int = 8,
     auto_prepare_sector_data: bool = False,
+    event_direction: str = "all",
 ) -> KeyRateV2AnalyzeResult:
     normalized_horizons = _normalize_horizons(horizons or DEFAULT_KEY_RATE_V2_HORIZONS)
+    normalized_event_direction = _normalize_event_direction(event_direction)
+    event_direction_filter = (
+        None if normalized_event_direction == "all" else normalized_event_direction
+    )
     instrument = get_preferred_instrument_by_secid(db, secid)
     if instrument is None:
         raise KeyRateV2UnknownInstrumentError(f"Unknown instrument: {secid.strip().upper()}")
@@ -164,6 +201,7 @@ def analyze_key_rate_impact_v2(
             event_type_id=event_type.id,
             date_from=date_from,
             date_to=date_to,
+            direction=event_direction_filter,
         )
         events_ready = len(events) > 0
 
@@ -177,6 +215,7 @@ def analyze_key_rate_impact_v2(
                 event_type_id=event_type.id,
                 date_from=date_from,
                 date_to=date_to,
+                direction=event_direction_filter,
             )
             events_ready = len(events) > 0
 
@@ -234,6 +273,7 @@ def analyze_key_rate_impact_v2(
         horizons=normalized_horizons,
         date_from=date_from,
         date_to=date_to,
+        event_direction=event_direction_filter,
     )
     data_preparation = KeyRateV2DataPreparationInfo(
         key_rate_events_ready=events_ready,
@@ -263,6 +303,7 @@ def analyze_key_rate_impact_v2(
         study_result=study_result,
         data_preparation=data_preparation,
         sector_comparison=sector_comparison,
+        event_direction=normalized_event_direction,
     )
 
 
@@ -273,12 +314,32 @@ def _build_result(
     study_result: EventStudyRunResult,
     data_preparation: KeyRateV2DataPreparationInfo,
     sector_comparison: KeyRateV2SectorComparison | None,
+    event_direction: str,
 ) -> KeyRateV2AnalyzeResult:
     sample_results = []
+    events_info = KeyRateV2EventsInfo(
+        found_total=study_result.events_total,
+        used_total=study_result.events_processed,
+        skipped_total=study_result.events_skipped,
+    )
     if study_result.study_run_id is not None:
+        all_event_rows = db.execute(
+            select(StudyEventResult, Event)
+            .join(Event, Event.id == StudyEventResult.event_id)
+            .where(StudyEventResult.study_run_id == study_result.study_run_id)
+            .order_by(Event.event_date, Event.id, StudyEventResult.horizon_trading_days),
+        ).all()
+        events_info = _build_events_info(
+            all_event_rows,
+            found_total=study_result.events_total,
+            used_total=study_result.events_processed,
+            skipped_total=study_result.events_skipped,
+        )
         sample_results = [
             KeyRateV2SampleResult(
                 event_id=result.event_id,
+                event_date=event.event_date,
+                event_title=event.title,
                 horizon_trading_days=result.horizon_trading_days,
                 event_price=result.event_price,
                 horizon_price=result.horizon_price,
@@ -286,8 +347,9 @@ def _build_result(
                 status=result.status,
                 skipped_reason=result.skipped_reason,
             )
-            for result in db.scalars(
-                select(StudyEventResult)
+            for result, event in db.execute(
+                select(StudyEventResult, Event)
+                .join(Event, Event.id == StudyEventResult.event_id)
                 .where(StudyEventResult.study_run_id == study_result.study_run_id)
                 .order_by(StudyEventResult.event_id, StudyEventResult.horizon_trading_days)
                 .limit(SAMPLE_RESULTS_LIMIT),
@@ -306,6 +368,7 @@ def _build_result(
             else None,
         ),
         event_type=study_result.event_type,
+        event_direction=event_direction,
         events_total=study_result.events_total,
         events_processed=study_result.events_processed,
         events_skipped=study_result.events_skipped,
@@ -313,8 +376,61 @@ def _build_result(
         summary=study_result.summary,
         data_preparation=data_preparation,
         status=study_result.status,
+        events=events_info,
         sample_results=sample_results,
         sector_comparison=sector_comparison,
+    )
+
+
+def _build_events_info(
+    rows,
+    *,
+    found_total: int,
+    used_total: int,
+    skipped_total: int,
+) -> KeyRateV2EventsInfo:
+    grouped: dict[int, KeyRateV2EventResult] = {}
+
+    for result, event in rows:
+        event_result = grouped.get(event.id)
+        if event_result is None:
+            event_result = KeyRateV2EventResult(
+                event_id=event.id,
+                event_date=event.event_date,
+                direction=event.direction,
+                title=event.title,
+            )
+            grouped[event.id] = event_result
+
+        event_result.horizons.append(
+            KeyRateV2EventHorizonResult(
+                horizon_trading_days=result.horizon_trading_days,
+                return_percent=result.return_percent,
+                status=result.status,
+                skipped_reason=result.skipped_reason,
+            ),
+        )
+
+    used = []
+    skipped = []
+    for event_result in grouped.values():
+        has_success = any(item.status == "success" for item in event_result.horizons)
+        if has_success:
+            used.append(event_result)
+            continue
+
+        skipped_reasons = [
+            item.skipped_reason for item in event_result.horizons if item.skipped_reason
+        ]
+        event_result.reason = skipped_reasons[0] if skipped_reasons else "unknown"
+        skipped.append(event_result)
+
+    return KeyRateV2EventsInfo(
+        found_total=found_total,
+        used_total=used_total,
+        skipped_total=skipped_total,
+        used=used,
+        skipped=skipped,
     )
 
 
@@ -329,6 +445,30 @@ def _normalize_horizons(horizons: list[int]) -> list[int]:
         )
 
     return normalized
+
+
+def _normalize_event_direction(event_direction: str | None) -> str:
+    if event_direction is None:
+        return "all"
+
+    normalized = event_direction.strip().lower()
+    aliases = {
+        "": "all",
+        "all": "all",
+        "hike": "hike",
+        "rate_hike": "hike",
+        "cut": "cut",
+        "rate_cut": "cut",
+        "hold": "hold",
+        "rate_hold": "hold",
+    }
+
+    if normalized not in aliases:
+        raise KeyRateV2DataNotPreparedError(
+            "event_direction must be one of all, hike, cut, hold.",
+        )
+
+    return aliases[normalized]
 
 
 def _determine_required_candle_range(

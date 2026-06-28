@@ -77,6 +77,7 @@ def test_key_rate_impact_v2_endpoint_works_when_data_is_prepared(api_client):
     assert data["secid"] == "SBER"
     assert data["instrument"]["secid"] == "SBER"
     assert data["event_type"] == "key_rate_decision"
+    assert data["event_direction"] == "all"
     assert data["events_total"] == 1
     assert data["events_processed"] == 1
     assert data["events_skipped"] == 0
@@ -88,6 +89,108 @@ def test_key_rate_impact_v2_endpoint_works_when_data_is_prepared(api_client):
     assert data["data_preparation"]["candles_ready"] is True
     assert data["data_preparation"]["candles_importer_ran"] is False
     assert data["sector_comparison"]["status"] == "no_sector_mapping"
+
+
+def test_key_rate_impact_v2_filters_events_by_direction(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        instrument = _seed_instrument(session)
+        event_type = _seed_event_type(session)
+        _seed_event(
+            session,
+            event_type,
+            event_date=date(2024, 1, 3),
+            direction="hike",
+        )
+        _seed_event(
+            session,
+            event_type,
+            event_date=date(2024, 1, 10),
+            direction="cut",
+        )
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 10), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 11), close=Decimal("90"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "event_direction": "hike",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "include_sector_comparison": False,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["event_direction"] == "hike"
+    assert data["events_total"] == 1
+    assert data["events_processed"] == 1
+    assert Decimal(str(data["summary"][0]["average_return_percent"])) == Decimal("10.0")
+    assert data["sample_results"][0]["event_date"] == "2024-01-03"
+
+
+def test_key_rate_impact_v2_response_groups_used_and_skipped_events(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        instrument = _seed_instrument(session)
+        event_type = _seed_event_type(session)
+        _seed_event(
+            session,
+            event_type,
+            event_date=date(2024, 1, 3),
+            direction="cut",
+        )
+        _seed_event(
+            session,
+            event_type,
+            event_date=date(2024, 1, 5),
+            direction="cut",
+        )
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 5), close=Decimal("120"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "SBER",
+            "event_direction": "cut",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "include_sector_comparison": False,
+        },
+    )
+
+    assert response.status_code == 200
+
+    events = response.json()["events"]
+
+    assert events["found_total"] == 2
+    assert events["used_total"] == 1
+    assert events["skipped_total"] == 1
+    assert events["used"][0]["event_date"] == "2024-01-03"
+    assert events["used"][0]["direction"] == "cut"
+    assert Decimal(str(events["used"][0]["horizons"][0]["return_percent"])) == Decimal("10.0")
+    assert events["skipped"][0]["event_date"] == "2024-01-05"
+    assert events["skipped"][0]["reason"] == "no_horizon_candles"
 
 
 def test_key_rate_impact_v2_sector_comparison_success(api_client):
@@ -579,13 +682,13 @@ def _seed_event_type(session):
     return event_type
 
 
-def _seed_event(session, event_type, *, event_date: date):
+def _seed_event(session, event_type, *, event_date: date, direction: str = "hold"):
     event = Event(
         event_type_id=event_type.id,
         source_event_id=f"event:{event_date.isoformat()}",
         event_date=event_date,
         title=f"Event {event_date.isoformat()}",
-        direction="hold",
+        direction=direction,
         importance="high",
     )
     session.add(event)

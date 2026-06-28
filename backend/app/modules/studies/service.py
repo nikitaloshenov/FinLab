@@ -85,6 +85,7 @@ def run_event_study(
     horizons: list[int] | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    event_direction: str | None = None,
     dry_run: bool = False,
 ) -> EventStudyRunResult:
     normalized_horizons = _normalize_horizons(horizons or DEFAULT_EVENT_STUDY_HORIZONS)
@@ -102,6 +103,7 @@ def run_event_study(
         "horizons": normalized_horizons,
         "from": date_from.isoformat() if date_from is not None else None,
         "to": date_to.isoformat() if date_to is not None else None,
+        "event_direction": event_direction,
         "interval": "1d",
     }
     study_run = create_study_run(
@@ -117,6 +119,7 @@ def run_event_study(
             event_type_id=event_type.id,
             date_from=date_from,
             date_to=date_to,
+            direction=event_direction,
         )
         candles = list_price_candles(db, instrument_id=instrument.id, interval="1d")
 

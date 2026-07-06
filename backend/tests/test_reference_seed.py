@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -66,19 +68,20 @@ def test_reference_seed_is_idempotent_on_small_db():
 
         first_summary = seed_reference_layer(session)
         second_summary = seed_reference_layer(session)
+        curated_secids = _curated_secids()
 
         assert first_summary.data_sources.created == 3
         assert first_summary.sectors.created == len(SECTOR_SEEDS)
-        assert first_summary.instruments.created == 3
-        assert first_summary.issuers.created == 2
-        assert first_summary.issuer_sector_history.created == 2
+        assert first_summary.instruments.created == len(curated_secids) + 1
+        assert first_summary.issuers.created == len(CURATED_ISSUER_MAPPINGS)
+        assert first_summary.issuer_sector_history.created == len(CURATED_ISSUER_MAPPINGS)
         assert first_summary.benchmarks.created == len(BENCHMARK_SEEDS)
 
         assert second_summary.data_sources.skipped == 3
         assert second_summary.sectors.skipped == len(SECTOR_SEEDS)
-        assert second_summary.instruments.skipped == 3
-        assert second_summary.issuers.skipped == 2
-        assert second_summary.issuer_sector_history.skipped == 2
+        assert second_summary.instruments.skipped == len(curated_secids) + 3
+        assert second_summary.issuers.skipped == len(CURATED_ISSUER_MAPPINGS)
+        assert second_summary.issuer_sector_history.skipped == len(CURATED_ISSUER_MAPPINGS)
         assert second_summary.benchmarks.skipped == len(BENCHMARK_SEEDS)
 
         assert session.scalar(select(DataSource).where(DataSource.code == "manual_seed")) is not None
@@ -87,6 +90,40 @@ def test_reference_seed_is_idempotent_on_small_db():
         assert session.scalar(select(Issuer).where(Issuer.name == "Sberbank")) is not None
         assert session.scalar(select(IssuerSectorHistory)) is not None
         assert session.scalar(select(Benchmark).where(Benchmark.code == "russian_market")) is not None
+    finally:
+        session.close()
+
+
+def test_reference_seed_on_empty_db_creates_curated_instruments_and_shared_history_once():
+    session = _build_session()
+    try:
+        first_summary = seed_reference_layer(session)
+        second_summary = seed_reference_layer(session)
+
+        sber = session.scalar(select(Instrument).where(Instrument.secid == "SBER"))
+        sberp = session.scalar(select(Instrument).where(Instrument.secid == "SBERP"))
+        flot = session.scalar(select(Instrument).where(Instrument.secid == "FLOT"))
+
+        assert sber is not None
+        assert sberp is not None
+        assert flot is not None
+        assert sber.issuer_id == sberp.issuer_id
+        assert _sector_code_for_secid(session, "SBER") == "finance"
+        assert _sector_code_for_secid(session, "SBERP") == "finance"
+        assert _sector_code_for_secid(session, "FLOT") == "transport"
+
+        assert _current_history_count_for_issuer(session, sber.issuer_id) == 1
+        assert first_summary.issuer_sector_history.created == len(CURATED_ISSUER_MAPPINGS)
+        assert second_summary.issuer_sector_history.created == 0
+        assert second_summary.issuer_sector_history.conflicts == 0
+        assert (
+            session.scalar(select(func.count()).select_from(Instrument))
+            == len(_curated_secids())
+        )
+        assert (
+            session.scalar(select(func.count()).select_from(IssuerSectorHistory))
+            == len(CURATED_ISSUER_MAPPINGS)
+        )
     finally:
         session.close()
 
@@ -113,10 +150,13 @@ def test_reference_seed_assigns_curated_sectors_and_is_idempotent():
         first_summary = seed_reference_layer(session)
         second_summary = seed_reference_layer(session)
 
-        assert first_summary.issuer_sector_history.created == 10
+        assert first_summary.issuer_sector_history.created == len(CURATED_ISSUER_MAPPINGS)
         assert second_summary.issuer_sector_history.created == 0
         assert second_summary.issuer_sector_history.conflicts == 0
-        assert session.scalar(select(func.count()).select_from(IssuerSectorHistory)) == 10
+        assert (
+            session.scalar(select(func.count()).select_from(IssuerSectorHistory))
+            == len(CURATED_ISSUER_MAPPINGS)
+        )
 
         assert _sector_code_for_secid(session, "SBER") == "finance"
         assert _sector_code_for_secid(session, "SBERP") == "finance"
@@ -129,6 +169,42 @@ def test_reference_seed_assigns_curated_sectors_and_is_idempotent():
         assert _sector_code_for_secid(session, "FLOT") == "transport"
         assert _sector_code_for_secid(session, "YDEX") == "it"
         assert _sector_code_for_secid(session, "IRAO") == "utilities"
+    finally:
+        session.close()
+
+
+def test_reference_seed_reuses_existing_matching_history():
+    session = _build_session()
+    try:
+        sector = Sector(code="finance", name="Finance")
+        issuer = Issuer(name="Sberbank", short_name="Sberbank", country="RU")
+        sber = Instrument(
+            issuer=issuer,
+            secid="SBER",
+            name="Sberbank",
+            short_name="SBER",
+            asset_type="share",
+            board="TQBR",
+            market="shares",
+            engine="stock",
+            currency="RUB",
+        )
+        history = IssuerSectorHistory(
+            issuer=issuer,
+            sector=sector,
+            valid_from=date(1900, 1, 1),
+        )
+        session.add_all([sector, issuer, sber, history])
+        session.commit()
+
+        seed_reference_layer(session)
+
+        sberp = session.scalar(select(Instrument).where(Instrument.secid == "SBERP"))
+
+        assert sberp is not None
+        assert sberp.issuer_id == sber.issuer_id
+        assert _current_history_count_for_issuer(session, sber.issuer_id) == 1
+        assert _sector_code_for_secid(session, "SBERP") == "finance"
     finally:
         session.close()
 
@@ -197,6 +273,23 @@ def _sector_code_for_secid(session, secid: str) -> str | None:
         .join(Instrument, Instrument.issuer_id == Issuer.id)
         .where(Instrument.secid == secid),
     )
+
+
+def _current_history_count_for_issuer(session, issuer_id: int) -> int:
+    return session.scalar(
+        select(func.count())
+        .select_from(IssuerSectorHistory)
+        .where(IssuerSectorHistory.issuer_id == issuer_id)
+        .where(IssuerSectorHistory.valid_to.is_(None)),
+    )
+
+
+def _curated_secids() -> set[str]:
+    return {
+        secid
+        for mapping in CURATED_ISSUER_MAPPINGS
+        for secid in mapping["secids"]
+    }
 
 
 def _assert_unique(values):

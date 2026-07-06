@@ -522,7 +522,7 @@ def test_key_rate_impact_v2_sector_with_no_peers_returns_no_peers(api_client):
     assert response.json()["sector_comparison"]["status"] == "no_peers"
 
 
-def test_key_rate_impact_v2_flot_seeded_sector_returns_no_peers_not_no_sector_mapping(api_client):
+def test_key_rate_impact_v2_flot_seeded_sector_returns_transport_mapping(api_client):
     client, SessionLocal = api_client
     session = SessionLocal()
     try:
@@ -565,7 +565,7 @@ def test_key_rate_impact_v2_flot_seeded_sector_returns_no_peers_not_no_sector_ma
     sector_comparison = response.json()["sector_comparison"]
 
     assert response.status_code == 200
-    assert sector_comparison["status"] == "no_peers"
+    assert sector_comparison["status"] == "insufficient_data"
     assert sector_comparison["sector"]["code"] == "transport"
 
 

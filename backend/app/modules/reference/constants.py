@@ -63,6 +63,11 @@ DATA_SOURCE_SEEDS: tuple[DataSourceSeed, ...] = (
 
 SECTOR_SEEDS: tuple[SectorSeed, ...] = (
     {"code": "finance", "name": "Finance", "description": None},
+    {
+        "code": "financial_infrastructure",
+        "name": "Financial Infrastructure",
+        "description": "Exchanges, marketplaces and market infrastructure companies.",
+    },
     {"code": "oil_gas", "name": "Oil & Gas", "description": None},
     {"code": "metals_mining", "name": "Metals & Mining", "description": None},
     {"code": "it", "name": "Information Technology", "description": None},
@@ -79,8 +84,13 @@ SECTOR_SEEDS: tuple[SectorSeed, ...] = (
 CURATED_ISSUER_MAPPINGS: tuple[IssuerMappingSeed, ...] = (
     {"secids": ("SBER", "SBERP"), "issuer_name": "Sberbank", "sector_code": "finance"},
     {"secids": ("VTBR",), "issuer_name": "VTB", "sector_code": "finance"},
-    {"secids": ("MOEX",), "issuer_name": "Moscow Exchange", "sector_code": "finance"},
-    {"secids": ("T", "TCSG"), "issuer_name": "T-Bank / TCS Group", "sector_code": "finance"},
+    {"secids": ("CBOM",), "issuer_name": "Credit Bank of Moscow", "sector_code": "finance"},
+    {
+        "secids": ("MOEX",),
+        "issuer_name": "Moscow Exchange",
+        "sector_code": "financial_infrastructure",
+    },
+    {"secids": ("T", "TCSG"), "issuer_name": "T-Bank / TCS Group", "sector_code": "it"},
     {"secids": ("GAZP",), "issuer_name": "Gazprom", "sector_code": "oil_gas"},
     {"secids": ("LKOH",), "issuer_name": "Lukoil", "sector_code": "oil_gas"},
     {"secids": ("ROSN",), "issuer_name": "Rosneft", "sector_code": "oil_gas"},
@@ -102,8 +112,10 @@ CURATED_ISSUER_MAPPINGS: tuple[IssuerMappingSeed, ...] = (
     {"secids": ("MGNT",), "issuer_name": "Magnit", "sector_code": "consumer"},
     {"secids": ("FIVE",), "issuer_name": "X5 Group", "sector_code": "consumer"},
     {"secids": ("HYDR",), "issuer_name": "RusHydro", "sector_code": "utilities"},
+    {"secids": ("IRAO",), "issuer_name": "Inter RAO", "sector_code": "utilities"},
     {"secids": ("FEES",), "issuer_name": "Federal Grid Company / Rosseti", "sector_code": "utilities"},
     {"secids": ("AFLT",), "issuer_name": "Aeroflot", "sector_code": "transport"},
+    {"secids": ("FLOT",), "issuer_name": "Sovcomflot", "sector_code": "transport"},
     {"secids": ("PHOR",), "issuer_name": "PhosAgro", "sector_code": "chemicals"},
 )
 

@@ -3,10 +3,10 @@ export function HypothesisResultPanel({ result, isLoading }) {
     return (
       <div className="hypothesisResult">
         <div className="emptyState hypothesisPlaceholder">
-          <strong>Запускаем event-study v2...</strong>
+          <strong>Запускаем анализ...</strong>
           <p>
-            Проверяем решения ЦБ, дневные свечи и при необходимости готовим
-            недостающие данные для выбранной акции.
+            Проверяем решения ЦБ, цены и при необходимости готовим недостающие данные
+            для выбранной акции.
           </p>
         </div>
       </div>
@@ -27,7 +27,7 @@ export function HypothesisResultPanel({ result, isLoading }) {
             <li>Итоговый вывод</li>
             <li>Реакция по горизонтам</li>
             <li>Сравнение с компаниями сектора</li>
-            <li>Технические детали данных</li>
+            <li>Качество данных</li>
           </ul>
         </div>
       </div>
@@ -61,10 +61,11 @@ function V2VerdictCard({ result }) {
   const bestHorizon = findBestHorizon(result.summary || []);
   const oneDay = findHorizon(result.summary || [], 1);
   const title = `${instrumentName} ${directionText.titleSuffix}`;
+  const badge = getReactionBadge(bestHorizon);
 
   return (
     <section className="assessmentCard">
-      <span className={`assessmentBadge ${result.status || ""}`}>Исторический анализ</span>
+      <span className={`assessmentBadge ${badge.tone}`}>{badge.label}</span>
       <h3>{title}</h3>
       <p>
         {buildVerdictText({
@@ -88,12 +89,12 @@ function KpiRow({ result }) {
   return (
     <section className="resultMetricsGrid kpiGrid">
       <Metric
-        label="Событий в выборке"
+        label="Использовано событий"
         value={`${result.events_processed} из ${result.events_total}`}
       />
       <Metric
         label="Лучший горизонт"
-        value={bestHorizon ? `${bestHorizon.horizon_trading_days} торговых дней` : "—"}
+        value={bestHorizon ? formatTradingDays(bestHorizon.horizon_trading_days) : "—"}
       />
       <Metric
         label="Средняя реакция"
@@ -129,8 +130,8 @@ function V2HorizonSummaryTable({ items }) {
                 <th>Горизонт</th>
                 <th>Средняя</th>
                 <th>Медиана</th>
-                <th>Положит.</th>
-                <th>Доля +</th>
+                <th>Рост</th>
+                <th>Доля роста</th>
                 <th>Событий</th>
               </tr>
             </thead>
@@ -155,7 +156,7 @@ function V2HorizonSummaryTable({ items }) {
                   <td>
                     {item.positive_count}
                     <span className="tableSubtext">
-                      отриц.: {item.negative_count}, нейтр.: {item.neutral_count}
+                      падение: {item.negative_count}, без изменений: {item.neutral_count}
                     </span>
                   </td>
                   <td>{formatPercent(item.hit_rate_percent)}</td>
@@ -204,7 +205,6 @@ function SectorComparisonBlock({ sectorComparison }) {
       )}
 
       <SkippedPeers peers={sectorComparison.peers_skipped || []} />
-      <SectorDataPreparation dataPreparation={sectorComparison.data_preparation} />
     </section>
   );
 }
@@ -228,15 +228,15 @@ function SectorInsight({ sectorComparison }) {
   const relation = excess >= 0 ? "лучше" : "хуже";
   const verdict =
     excess >= 0
-      ? `Опережение сектора: ${formatPercent(best.excess_return_percent)} п.п.`
-      : `Отставание от сектора: ${formatPercent(best.excess_return_percent)} п.п.`;
+      ? `Опережение сектора: ${formatSignedPercentagePoints(best.excess_return_percent)}`
+      : `Отставание от сектора: ${formatSignedPercentagePoints(best.excess_return_percent)}`;
 
   return (
     <div className="sectorCallout">
       <span>{verdict}</span>
       <strong>
         На горизонте {best.horizon_trading_days}д акция была {relation} среднего по
-        сектору на {formatPercent(Math.abs(excess))} п.п.
+        сектору на {formatSignedPercentagePoints(excess)}
       </strong>
       <p>
         Сектор: {sectorName}. Использовано компаний сектора: {sectorComparison.peers_used} из{" "}
@@ -303,7 +303,7 @@ function SectorEmptyState({ sectorComparison }) {
     insufficient_data:
       "Сектор найден, но по компаниям сектора пока не хватает дневных цен для сравнения. Можно включить догрузку данных компаний сектора в дополнительных настройках.",
     no_sector_mapping:
-      "Для этой акции пока не указан сектор в справочнике FinLab. Основной анализ рассчитан, но сравнение с компаниями сектора недоступно.",
+      "Для этой акции сектор пока не указан в справочнике FinLab, поэтому сравнение с компаниями сектора недоступно.",
     no_peers: "Для этого сектора пока не найдено подходящих компаний для сравнения.",
   };
 
@@ -349,21 +349,6 @@ function SkippedPeers({ peers }) {
   );
 }
 
-function SectorDataPreparation({ dataPreparation }) {
-  if (!dataPreparation) {
-    return null;
-  }
-
-  return (
-    <p className="resultHint">
-      Догрузка компаний сектора: запусков{" "}
-      {dataPreparation.sector_peer_candles_importer_ran_count}, строк загружено:{" "}
-      {dataPreparation.sector_peer_candles_rows_loaded}, пропущено из-за данных:{" "}
-      {dataPreparation.peers_skipped_due_to_missing_data}.
-    </p>
-  );
-}
-
 function DataPreparationBlock({ dataPreparation }) {
   if (!dataPreparation) {
     return null;
@@ -371,13 +356,13 @@ function DataPreparationBlock({ dataPreparation }) {
 
   const preparedText =
     dataPreparation.key_rate_events_importer_ran || dataPreparation.candles_importer_ran
-      ? "Дневные цены или события были подготовлены во время запроса."
-      : "Данные уже были готовы для анализа.";
+      ? "Часть данных была подготовлена во время анализа."
+      : "Данные доступны для анализа.";
 
   return (
     <section className="resultBlock secondaryResultBlock quietResultBlock">
       <details className="eventDetails">
-        <summary>Технические детали подготовки данных</summary>
+        <summary>Качество данных</summary>
         <div className="detailsBody">
           <p className="resultHint">{preparedText}</p>
           <div className="resultMetricsGrid compact">
@@ -386,34 +371,32 @@ function DataPreparationBlock({ dataPreparation }) {
               value={formatBoolean(dataPreparation.key_rate_events_ready)}
             />
             <Metric
-              label="Импорт событий"
+              label="События обновлены"
               value={formatBoolean(dataPreparation.key_rate_events_importer_ran)}
             />
             <Metric
-              label="Дневные цены готовы"
+              label="Цены готовы"
               value={formatBoolean(dataPreparation.candles_ready)}
             />
             <Metric
-              label="Импорт дневных цен"
+              label="Цены обновлены"
               value={formatBoolean(dataPreparation.candles_importer_ran)}
             />
-            <Metric label="Строк загружено" value={dataPreparation.candles_rows_loaded} />
+            <Metric label="Загружено записей" value={dataPreparation.candles_rows_loaded} />
             <Metric
-              label="Технический диапазон цен"
+              label="Период доступных цен"
               value={`${dataPreparation.required_from || "—"} — ${
                 dataPreparation.required_to || "—"
               }`}
             />
           </div>
           <p className="resultHint">
-            Диапазон данных может быть шире периода решений ЦБ, потому что для расчёта
-            выбранных горизонтов используются дневные свечи после даты последнего
-            события.
+            Период цен может быть шире выбранного периода решений ЦБ: для расчёта нужны
+            данные после даты последнего события.
           </p>
           <p className="resultHint">
-            Для выбранных горизонтов нужны дневные цены после даты решения ЦБ. Самые
-            свежие события могут быть пропущены, если последующих свечей ещё
-            недостаточно.
+            Для расчёта нужны цены после даты решения ЦБ. Самые свежие события могут
+            быть пропущены, если последующих торговых данных ещё недостаточно.
           </p>
         </div>
       </details>
@@ -473,7 +456,7 @@ function EventsBlock({ events, fallbackItems }) {
           </div>
           <p className="resultHint">
             Часть свежих событий может быть пропущена, если для выбранных горизонтов ещё
-            нет последующих дневных свечей.
+            нет последующих цен.
           </p>
         </details>
       )}
@@ -498,7 +481,6 @@ function CalculatedEventCard({ event }) {
           </span>
         ))}
       </div>
-      {event.hasTechnicalFallback && <p>Технический идентификатор события: {event.eventId}</p>}
     </article>
   );
 }
@@ -507,9 +489,10 @@ function MethodologyNote() {
   return (
     <section className="resultBlock secondaryResultBlock quietResultBlock">
       <p className="resultHint">
-        Методология: событие привязывается к первой дневной свече с датой не раньше
-        решения ЦБ; горизонт — N торговых дней после события. Сравнение с компаниями
-        сектора считает среднее/медиану по акциям того же сектора, а не формальный индекс.
+        Как читать результат: анализ берёт первую доступную цену акции на дату решения
+        ЦБ или после неё, затем сравнивает цену через выбранное число торговых дней.
+        Сравнение с компаниями сектора показывает среднюю реакцию похожих компаний, а
+        не официальный индекс.
       </p>
     </section>
   );
@@ -519,11 +502,10 @@ function LegacyResultFallback({ result }) {
   return (
     <div className="hypothesisResult">
       <section className="assessmentCard">
-        <span className="assessmentBadge">Legacy result</span>
+        <span className="assessmentBadge neutral">Старый формат ответа</span>
         <h3>{result?.summary?.company_name || result?.main_ticker || "Key Rate Analyzer"}</h3>
         <p>
-          Получен legacy-ответ. Для нового анализа используйте v2 endpoint с дневными
-          свечами и event-study результатами.
+          Получен ответ в старом формате. Обновите страницу и запустите анализ ещё раз.
         </p>
       </section>
     </div>
@@ -551,7 +533,7 @@ function buildVerdictText({ result, bestHorizon, oneDay, directionText }) {
   )}.`;
   const processedText =
     skippedTotal > 0
-      ? ` В расчёте использовано ${usedTotal}, пропущено ${skippedTotal} из-за нехватки дневных цен для выбранных горизонтов.`
+      ? ` В расчёте использовано ${usedTotal}, пропущено ${skippedTotal} из-за нехватки цен для выбранных горизонтов.`
       : " Все найденные решения использованы в расчёте.";
 
   if (!bestHorizon) {
@@ -564,7 +546,30 @@ function buildVerdictText({ result, bestHorizon, oneDay, directionText }) {
       )}.`
     : "";
 
-  return `${eventsText}${processedText} ${directionText.sentencePrefix} лучший средний результат был на горизонте ${bestHorizon.horizon_trading_days} торговых дней: ${formatPercent(bestHorizon.average_return_percent)}.${oneDayText}`;
+  return `${eventsText}${processedText} ${directionText.sentencePrefix} лучший средний результат был на горизонте ${formatTradingDays(bestHorizon.horizon_trading_days)}: ${formatPercent(bestHorizon.average_return_percent)}.${oneDayText}`;
+}
+
+function getReactionBadge(bestHorizon) {
+  if (!bestHorizon || !bestHorizon.sample_size || bestHorizon.sample_size < 2) {
+    return { label: "Мало данных", tone: "insufficient_data" };
+  }
+
+  const average = Number(bestHorizon.average_return_percent);
+  const hitRate = Number(bestHorizon.hit_rate_percent);
+
+  if (Number.isNaN(average)) {
+    return { label: "Смешанная реакция", tone: "neutral" };
+  }
+
+  if (average > 0.1 && hitRate >= 50) {
+    return { label: "Чаще рост", tone: "positive" };
+  }
+
+  if (average < -0.1) {
+    return { label: "Чаще снижение", tone: "negative" };
+  }
+
+  return { label: "Смешанная реакция", tone: "neutral" };
 }
 
 function getSectorKpi(sectorComparison) {
@@ -597,8 +602,8 @@ function getSectorKpi(sectorComparison) {
   return {
     value:
       excess >= 0
-        ? `Опережение: ${formatPercent(best.excess_return_percent)} п.п.`
-        : `Отставание: ${formatPercent(best.excess_return_percent)} п.п.`,
+        ? `Лучше на ${formatSignedPercentagePoints(best.excess_return_percent)}`
+        : `Хуже на ${formatSignedPercentagePoints(best.excess_return_percent)}`,
     tone: excess >= 0 ? "positive" : "negative",
   };
 }
@@ -694,7 +699,7 @@ function groupSampleResults(items) {
       hasTechnicalFallback: !item.event_date,
       title: item.event_date
         ? `Решение ЦБ от ${formatDate(item.event_date)}`
-        : `Событие #${item.event_id}`,
+        : "Решение ЦБ",
       horizons: [],
     };
 
@@ -783,6 +788,33 @@ function formatPercent(value) {
   }).format(numberValue)}%`;
 }
 
+function formatTradingDays(value) {
+  const numberValue = Number(value);
+
+  if (numberValue === 1) {
+    return "1 торговый день";
+  }
+
+  return `${numberValue} торговых дней`;
+}
+
+function formatSignedPercentagePoints(value) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return value;
+  }
+
+  return `${new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(numberValue))} п.п.`;
+}
+
 function formatBoolean(value) {
   return value ? "Да" : "Нет";
 }
@@ -801,9 +833,9 @@ function formatSectorStatus(value) {
 
 function formatPeerSkipReason(value) {
   const labels = {
-    missing_daily_candles: "нет дневных свечей",
+    missing_daily_candles: "нет дневных цен",
     insufficient_event_data: "недостаточно событий с данными",
-    candle_import_failed: "ошибка загрузки свечей",
+    candle_import_failed: "не удалось загрузить цены",
   };
 
   return labels[value] || value || "причина не определена";
@@ -811,11 +843,11 @@ function formatPeerSkipReason(value) {
 
 function formatSkipReason(value) {
   const labels = {
-    no_event_candle: "не найдена дневная свеча на дату события или после неё",
-    invalid_event_price: "некорректная цена события",
+    no_event_candle: "нет дневных цен в базе за этот период",
+    invalid_event_price: "некорректная цена на дату решения",
     no_horizon_candles:
-      "не хватает дневных свечей после события для выбранного горизонта",
-    invalid_horizon_price: "некорректная цена горизонта",
+      "не хватило цен после даты решения для выбранного горизонта",
+    invalid_horizon_price: "некорректная цена на горизонте",
     no_events_found: "события не найдены",
   };
 

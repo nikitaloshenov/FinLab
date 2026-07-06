@@ -2,39 +2,58 @@
 
 FinLab is a production-like fullstack fintech pet project in active development.
 
-The project started as a MOEX market monitoring dashboard with watchlists, latest prices, market charts and price alerts. It is now gradually evolving into a hypothesis-driven market analysis tool based on historical market data.
+The project started as a MOEX market monitoring dashboard with watchlists, latest prices, market charts and price alerts. It is now evolving into a hypothesis-driven market analysis tool based on historical market data.
 
-FinLab is not financial advice, not an investment recommendation and not production-ready yet.
+FinLab is not financial advice, not an investment recommendation and not production-ready financial software.
 
 ## Current Product Direction
 
-The current main development focus is the Key Rate Impact Analyzer MVP and its demo/readiness polish.
+The current main showcase feature is **Анализ реакции на решения ЦБ** / Key Rate Analyzer.
 
-The target product question is:
+The product question is:
 
-> How did a selected stock historically react to similar key rate decisions?
+> How did a selected stock historically change after similar Bank of Russia key-rate decisions?
 
-The implemented MVP moves from a single-event candle-window analysis toward a multi-event event-study flow:
+Current implemented flow:
 
-- choose one stock;
-- choose a key rate scenario: `rate_cut`, `rate_hike` or `rate_hold`;
-- optionally choose a benchmark;
-- analyze similar historical key rate decisions;
-- compare returns over 1, 3 and 10 trading days in the main frontend flow.
+- choose one MOEX stock;
+- choose decision type: all / hike / cut / hold;
+- choose year range;
+- analyze historical reaction after 1, 5 and 10 trading days;
+- optionally compare with companies from the same sector;
+- show used/skipped events and data quality details.
 
-The Key Rate Impact Analyzer MVP is implemented. It uses curated/imported historical key rate decisions from the `key_rate_decisions` table and MOEX daily candles. The current calculation uses event-close logic:
+This is historical analysis, not a forecast.
 
-- event candle = first trading candle with date `>= decision_date`;
-- event price = close of that event candle;
-- horizon return = close after N trading days divided by event price minus 1;
-- missing event or horizon candles are skipped, not treated as zero returns.
+## Current Analyzer Data Flow
 
-The analyzer returns `summary`, `confidence`, `best_horizon`, `skipped_summary`, `horizon_summary` and optional `event_results`. It remains historical analysis, not a forecast.
+The current frontend calls:
 
-Related specs:
+```text
+POST /api/v1/hypotheses/key-rate-impact/v2
+```
 
-- `KEY_RATE_ANALYZER_SPEC.md` describes the intended analyzer product logic.
-- `KEY_RATE_DATASET_SPEC.md` describes the dataset strategy for historical key rate decisions.
+The analyzer uses:
+
+- imported key-rate decisions;
+- generic `events` layer;
+- persisted analytics daily prices in `price_candles`;
+- event-study engine over trading-day horizons;
+- optional peer-based sector comparison.
+
+Calculation logic:
+
+- event price = close of the first daily price row with `trading_date >= event_date`;
+- horizon price = close after N trading days from the event price row;
+- return = `horizon_price / event_price - 1`;
+- missing event/horizon prices are skipped, not treated as zero.
+
+Data coverage behavior:
+
+- Market Chart may use a separate MOEX chart flow.
+- Key Rate Analyzer uses persisted `price_candles`.
+- If `price_candles` contains only the beginning of the selected range, the analyzer should import the missing selected-ticker tail before running.
+- If data is still unavailable, events/horizons remain skipped with readable reasons.
 
 ## Tech Stack
 
@@ -56,11 +75,11 @@ Frontend:
 - JavaScript
 - CSS
 - API integration with the backend
-- Dashboard UI
+- Product/demo UI
 
 Infrastructure:
 
-- Docker Compose for PostgreSQL
+- Docker Compose
 - GitHub Actions CI
 - Root `.env.example`
 - Branch workflow: `main`, `develop`, `feature/*`
@@ -79,13 +98,17 @@ backend/app/
     market/
     watchlist/
     alerts/
+    reference/
+    market_data/
+    events/
+    studies/
     hypotheses/
 ```
 
 Architecture principles:
 
 - `router.py` is the HTTP API layer.
-- `service.py` contains business logic.
+- `service.py` contains business/application logic.
 - `repository.py` contains database access.
 - `schemas.py` contains Pydantic request/response models.
 - `models.py` contains SQLAlchemy models.
@@ -97,17 +120,14 @@ Avoid placing business logic directly in routers unless it is very small and end
 
 ### Market
 
-Responsible for tickers, latest prices and MOEX candles.
+Responsible for legacy ticker/latest-price behavior and Market Chart MOEX candles.
 
 Important behavior:
 
 - fetch ticker data from MOEX ISS;
 - create ticker records when needed;
 - update `ticker_latest_prices`;
-- serve Market Chart candles directly from MOEX through:
-  - `GET /api/v1/market/tickers/{secid}/candles`
-
-PostgreSQL stores product state, not market candles. Historical candles are currently requested from MOEX.
+- serve Market Chart candles through `GET /api/v1/market/tickers/{secid}/candles`.
 
 ### Watchlist
 
@@ -133,23 +153,21 @@ Important behavior:
 - alert deletion uses soft delete;
 - alert events should remain as history.
 
-### Hypotheses
+### Analytics Modules
 
-Responsible for hypothesis/event analysis.
+Current analytics modules:
 
-Current state:
+- `reference`: instruments, issuers, sectors, sector history, data sources.
+- `market_data`: persisted daily prices in `price_candles`, ingestion runs.
+- `events`: generic event types and key-rate decision events.
+- `studies`: event-study runs, event results, horizon summaries and skipped events.
+- `hypotheses`: API orchestration for Key Rate Analyzer and legacy hypothesis endpoints.
 
-- `POST /api/v1/hypotheses/analyze` exists and must not be changed casually;
-- static MVP key rate events exist as a legacy/sample layer;
-- `key_rate_decisions` database table exists for official/imported key rate decisions;
-- `GET /api/v1/hypotheses/key-rate-decisions` reads the DB table and returns an empty list if no data has been imported.
-- `POST /api/v1/hypotheses/key-rate-impact/analyze` runs the Key Rate Impact Analyzer MVP over imported decisions and MOEX candles.
-
-Do not present sample events as official data.
+Do not present sample/dev events as official data.
 
 ## Database State
 
-Current product tables include:
+Current product/analytics tables include:
 
 - `tickers`
 - `ticker_latest_prices`
@@ -157,9 +175,25 @@ Current product tables include:
 - `alerts`
 - `alert_events`
 - `key_rate_decisions`
+- `issuers`
+- `instruments`
+- `sectors`
+- `issuer_sector_history`
+- `data_sources`
+- `price_candles`
+- `ingestion_runs`
+- `event_types`
+- `events`
+- `event_values`
+- `event_targets`
+- `study_runs`
+- `study_run_events`
+- `study_event_results`
+- `study_horizon_summary`
+- `study_skipped_events`
 - `alembic_version`
 
-The old saved `prices` history table has been removed. Market Chart uses MOEX candles directly.
+The old saved `prices` history table has been removed. Market Chart uses MOEX chart data, while the analyzer uses analytics `price_candles`.
 
 Use `Decimal` for prices and rates. Avoid floats for financial values.
 
@@ -186,13 +220,11 @@ Current frontend capabilities:
 
 - Market Overview dashboard section;
 - Watchlist;
-- Market Chart based on MOEX candles;
+- Market Chart;
 - Price Alerts;
 - Alert Events;
-- Hypothesis Lab UI;
+- Hypothesis Lab / Key Rate Analyzer UI;
 - structured API error parsing.
-
-The frontend is a working MVP and may change while the Key Rate Impact Analyzer is stabilized.
 
 ## API and Error Handling
 
@@ -219,11 +251,15 @@ Backend tests cover:
 - alert condition logic;
 - batch behavior;
 - MOEX retry/invalid JSON handling;
-- MOEX candles parsing/API contract;
+- market candles parsing/API contract;
 - soft delete alerts;
-- hypotheses blueprints/report composer/historical validation;
-- key rate events sample layer;
-- key rate decisions repository/API foundation.
+- key-rate decision importers;
+- reference data;
+- market data importer;
+- event-study logic;
+- Key Rate Analyzer API;
+- sector comparison;
+- data coverage/readiness behavior.
 
 GitHub Actions CI runs backend tests and frontend build.
 
@@ -266,8 +302,8 @@ Do not add:
 
 Near-term focus:
 
-- official/imported Historical Key Rate Decisions Dataset;
-- Key Rate Impact Analyzer;
-- transition from a dashboard/watchlist app toward historical event analysis;
 - documentation and repository presentation;
-- better tests around the new analyzer flow.
+- demo validation for Key Rate Analyzer;
+- data coverage/readiness hardening;
+- frontend decomposition and result readability;
+- future macro-event analyzers only after the current analyzer is stable.

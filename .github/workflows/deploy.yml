@@ -137,9 +137,26 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.prod.yml build
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
+          echo "Running migrations..."
           docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend python -m alembic upgrade head
+
+          echo "Running reference seed..."
           docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend python -m app.modules.reference.seed
 
+          echo "Validating reference data..."
+          INSTRUMENTS_COUNT="$(docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres psql -U finlab -d finlab -tAc "SELECT COUNT(*) FROM instruments;")"
+          echo "Production instruments count: $INSTRUMENTS_COUNT"
+          test "$INSTRUMENTS_COUNT" -gt 0
+
+          echo "Checking demo tickers..."
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres psql -U finlab -d finlab -c "
+          SELECT i.secid, i.name
+          FROM instruments i
+          WHERE i.secid IN ('SBER', 'SBERP', 'FLOT', 'MOEX')
+          ORDER BY i.secid;
+          "
+
+          echo "Compose status..."
           docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
           REMOTE
 

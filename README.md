@@ -184,6 +184,31 @@ If frontend and backend are served from different origins, backend CORS is confi
 BACKEND_CORS_ORIGINS=https://jirniydizainer.ru,https://www.jirniydizainer.ru
 ```
 
+## Continuous Deployment
+
+GitHub Actions deploys the project after a successful push to `main`. The same workflow can be started manually with `workflow_dispatch`.
+
+Workflow:
+
+- runs backend tests;
+- runs frontend production build;
+- SSHes into the server;
+- updates `/opt/finlab` to `origin/main`;
+- builds and starts Docker Compose with `docker-compose.yml` and `docker-compose.prod.yml`;
+- runs Alembic migrations and reference seed;
+- checks the public health endpoint.
+
+Required GitHub Secrets:
+
+- `CD_SSH_HOST`
+- `CD_SSH_USER`
+- `CD_SSH_PORT`
+- `CD_SSH_PRIVATE_KEY`
+- `CD_DEPLOY_PATH`
+- `CD_HEALTHCHECK_URL`
+
+Production `.env` and SSH keys live outside the repository and must not be committed.
+
 ## Local Run Without Docker
 
 Backend:

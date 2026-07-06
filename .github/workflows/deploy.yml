@@ -1,0 +1,160 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: finlab
+          POSTGRES_USER: finlab
+          POSTGRES_PASSWORD: finlab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finlab -d finlab"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      APP_NAME: FinLab
+      APP_ENV: test
+      API_V1_PREFIX: /api/v1
+      DATABASE_URL: postgresql+psycopg2://finlab:finlab@localhost:5432/finlab
+      MOEX_BASE_URL: https://iss.moex.com/iss
+      MOEX_DEFAULT_ENGINE: stock
+      MOEX_DEFAULT_MARKET: shares
+      MOEX_DEFAULT_BOARD: TQBR
+      MOEX_TIMEOUT_SECONDS: 15
+      MOEX_RETRY_ATTEMPTS: 2
+      MOEX_RETRY_DELAY_SECONDS: 0.5
+      BACKEND_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run backend tests
+        working-directory: backend
+        run: python -m pytest
+
+  frontend-build:
+    runs-on: ubuntu-latest
+
+    env:
+      VITE_API_BASE_URL: /api/v1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - backend-tests
+      - frontend-build
+
+    env:
+      CD_SSH_HOST: ${{ secrets.CD_SSH_HOST }}
+      CD_SSH_USER: ${{ secrets.CD_SSH_USER }}
+      CD_SSH_PORT: ${{ secrets.CD_SSH_PORT }}
+      CD_SSH_PRIVATE_KEY: ${{ secrets.CD_SSH_PRIVATE_KEY }}
+      CD_DEPLOY_PATH: ${{ secrets.CD_DEPLOY_PATH }}
+      CD_HEALTHCHECK_URL: ${{ secrets.CD_HEALTHCHECK_URL }}
+
+    steps:
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          test -n "$CD_SSH_HOST"
+          test -n "$CD_SSH_USER"
+          test -n "$CD_SSH_PORT"
+          test -n "$CD_SSH_PRIVATE_KEY"
+          test -n "$CD_DEPLOY_PATH"
+          test -n "$CD_HEALTHCHECK_URL"
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$CD_SSH_PRIVATE_KEY" > ~/.ssh/finlab_cd_key
+          chmod 600 ~/.ssh/finlab_cd_key
+          ssh-keyscan -p "$CD_SSH_PORT" "$CD_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on server
+        run: |
+          set -euo pipefail
+          deploy_path_escaped=$(printf '%q' "$CD_DEPLOY_PATH")
+          ssh -i ~/.ssh/finlab_cd_key \
+            -p "$CD_SSH_PORT" \
+            -o IdentitiesOnly=yes \
+            "$CD_SSH_USER@$CD_SSH_HOST" \
+            "CD_DEPLOY_PATH=$deploy_path_escaped bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd "$CD_DEPLOY_PATH"
+
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend python -m alembic upgrade head
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend python -m app.modules.reference.seed
+
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+          REMOTE
+
+      - name: Healthcheck
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 10); do
+            if curl --fail --silent --show-error "$CD_HEALTHCHECK_URL"; then
+              echo "Healthcheck passed"
+              exit 0
+            fi
+
+            echo "Healthcheck attempt $attempt failed; retrying..."
+            sleep 6
+          done
+
+          echo "Healthcheck failed after retries"
+          exit 1

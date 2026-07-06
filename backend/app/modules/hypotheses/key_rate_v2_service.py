@@ -26,6 +26,8 @@ DEFAULT_KEY_RATE_V2_HORIZONS = [1, 5, 10]
 MAX_KEY_RATE_V2_HORIZON = 60
 SAMPLE_RESULTS_LIMIT = 5
 PERCENT_QUANT = Decimal("0.000001")
+DAILY_CANDLE_COVERAGE_START_TOLERANCE_DAYS = 14
+DAILY_CANDLE_COVERAGE_END_TOLERANCE_DAYS = 14
 
 
 class KeyRateV2Error(Exception):
@@ -67,6 +69,13 @@ class KeyRateV2DataPreparationInfo:
     candles_rows_loaded: int
     required_from: date | None
     required_to: date | None
+
+
+@dataclass
+class DailyCandleCoverage:
+    candles_count: int
+    earliest_date: date | None
+    latest_date: date | None
 
 
 @dataclass
@@ -246,14 +255,31 @@ def analyze_key_rate_impact_v2(
 
     if required_from is not None and required_to is not None:
         if refresh_candles or (not candles_ready and auto_prepare_data):
+            import_from, import_to = _determine_missing_candle_import_range(
+                db,
+                instrument_id=instrument.id,
+                required_from=required_from,
+                required_to=required_to,
+            )
             try:
-                import_result = import_daily_candles(
-                    db,
-                    secid=instrument.secid,
-                    date_from=required_from,
-                    date_to=required_to,
-                    interval="1d",
-                )
+                if import_from is not None and import_to is not None:
+                    import_result = import_daily_candles(
+                        db,
+                        secid=instrument.secid,
+                        date_from=import_from,
+                        date_to=import_to,
+                        interval="1d",
+                    )
+                else:
+                    import_result = CandleImportResult(
+                        secid=instrument.secid,
+                        interval="1d",
+                        date_from=required_from,
+                        date_to=_effective_required_to(required_to),
+                        rows_loaded=0,
+                        ingestion_run_id=0,
+                        status="skipped",
+                    )
             except Exception as error:
                 raise KeyRateV2PreparationError(f"Failed to prepare daily candles: {error}") from error
 
@@ -509,7 +535,48 @@ def _has_daily_candles(
     if required_from is None or required_to is None:
         return False
 
-    coverage = db.execute(
+    coverage = _get_daily_candle_coverage(
+        db,
+        instrument_id=instrument_id,
+        required_from=required_from,
+        required_to=required_to,
+    )
+
+    if (
+        not coverage.candles_count
+        or coverage.earliest_date is None
+        or coverage.latest_date is None
+    ):
+        return False
+
+    if coverage.candles_count < 2:
+        return False
+
+    if (
+        coverage.earliest_date
+        > required_from + timedelta(days=DAILY_CANDLE_COVERAGE_START_TOLERANCE_DAYS)
+    ):
+        return False
+
+    effective_required_to = _effective_required_to(required_to)
+    if (
+        coverage.latest_date
+        < effective_required_to - timedelta(days=DAILY_CANDLE_COVERAGE_END_TOLERANCE_DAYS)
+    ):
+        return False
+
+    return True
+
+
+def _get_daily_candle_coverage(
+    db: Session,
+    *,
+    instrument_id: int,
+    required_from: date,
+    required_to: date,
+) -> DailyCandleCoverage:
+    effective_required_to = _effective_required_to(required_to)
+    candles_count, earliest_date, latest_date = db.execute(
         select(
             func.count(PriceCandle.id),
             func.min(PriceCandle.trading_date),
@@ -518,21 +585,50 @@ def _has_daily_candles(
             PriceCandle.instrument_id == instrument_id,
             PriceCandle.interval == "1d",
             PriceCandle.trading_date >= required_from,
-            PriceCandle.trading_date <= required_to,
+            PriceCandle.trading_date <= effective_required_to,
         ),
     ).one()
-    candles_count, earliest_date, latest_date = coverage
 
-    if not candles_count or earliest_date is None or latest_date is None:
-        return False
+    return DailyCandleCoverage(
+        candles_count=candles_count or 0,
+        earliest_date=earliest_date,
+        latest_date=latest_date,
+    )
 
-    if candles_count < 2:
-        return False
 
-    if earliest_date > required_from + timedelta(days=14):
-        return False
+def _determine_missing_candle_import_range(
+    db: Session,
+    *,
+    instrument_id: int,
+    required_from: date,
+    required_to: date,
+) -> tuple[date | None, date | None]:
+    effective_required_to = _effective_required_to(required_to)
+    coverage = _get_daily_candle_coverage(
+        db,
+        instrument_id=instrument_id,
+        required_from=required_from,
+        required_to=required_to,
+    )
 
-    return True
+    if coverage.earliest_date is None or coverage.latest_date is None:
+        return required_from, effective_required_to
+
+    if (
+        coverage.earliest_date
+        > required_from + timedelta(days=DAILY_CANDLE_COVERAGE_START_TOLERANCE_DAYS)
+    ):
+        return required_from, effective_required_to
+
+    import_from = coverage.latest_date + timedelta(days=1)
+    if import_from > effective_required_to:
+        return None, None
+
+    return import_from, effective_required_to
+
+
+def _effective_required_to(required_to: date) -> date:
+    return min(required_to, date.today())
 
 
 def _build_sector_comparison(
@@ -604,13 +700,30 @@ def _build_sector_comparison(
         if not has_required_candles and auto_prepare_sector_data:
             try:
                 if required_from is not None and required_to is not None:
-                    import_result = import_daily_candles(
+                    import_from, import_to = _determine_missing_candle_import_range(
                         db,
-                        secid=peer.secid,
-                        date_from=required_from,
-                        date_to=required_to,
-                        interval="1d",
+                        instrument_id=peer.id,
+                        required_from=required_from,
+                        required_to=required_to,
                     )
+                    if import_from is None or import_to is None:
+                        import_result = CandleImportResult(
+                            secid=peer.secid,
+                            interval="1d",
+                            date_from=required_from,
+                            date_to=_effective_required_to(required_to),
+                            rows_loaded=0,
+                            ingestion_run_id=0,
+                            status="skipped",
+                        )
+                    else:
+                        import_result = import_daily_candles(
+                            db,
+                            secid=peer.secid,
+                            date_from=import_from,
+                            date_to=import_to,
+                            interval="1d",
+                        )
                     data_preparation.sector_peer_candles_importer_ran_count += 1
                     data_preparation.sector_peer_candles_rows_loaded += import_result.rows_loaded
                     candles = _list_daily_candles(db, instrument_id=peer.id)

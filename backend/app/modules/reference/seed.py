@@ -49,6 +49,7 @@ def seed_reference_layer(db: Session) -> ReferenceSeedSummary:
     seed_data_sources(db, summary.data_sources)
     seed_sectors(db, summary.sectors)
     backfill_instruments_from_tickers(db, summary.instruments)
+    seed_curated_instruments(db, summary.instruments)
     apply_curated_issuer_sector_mapping(
         db,
         issuers_counter=summary.issuers,
@@ -166,6 +167,57 @@ def backfill_instruments_from_tickers(db: Session, counter: SeedCounter) -> dict
     return instruments
 
 
+def seed_curated_instruments(db: Session, counter: SeedCounter) -> dict[str, Instrument]:
+    instruments: dict[str, Instrument] = {}
+
+    for mapping in CURATED_ISSUER_MAPPINGS:
+        for secid in mapping["secids"]:
+            instrument = db.scalar(
+                select(Instrument).where(
+                    Instrument.engine == "stock",
+                    Instrument.market == "shares",
+                    Instrument.board == "TQBR",
+                    Instrument.secid == secid,
+                ),
+            )
+
+            if instrument is None:
+                values = {
+                    "name": mapping["issuer_name"],
+                    "short_name": secid,
+                    "asset_type": DEFAULT_SHARE_ASSET_TYPE,
+                    "currency": "RUB",
+                    "is_active": True,
+                }
+                instrument = Instrument(
+                    secid=secid,
+                    board="TQBR",
+                    market="shares",
+                    engine="stock",
+                    **values,
+                )
+                db.add(instrument)
+                counter.created += 1
+            else:
+                values = {
+                    "name": instrument.name or mapping["issuer_name"],
+                    "short_name": instrument.short_name or secid,
+                    "asset_type": instrument.asset_type or DEFAULT_SHARE_ASSET_TYPE,
+                    "currency": instrument.currency or "RUB",
+                    "is_active": True,
+                }
+                changed = _update_fields(instrument, values)
+                if changed:
+                    counter.updated += 1
+                else:
+                    counter.skipped += 1
+
+            instruments[secid] = instrument
+
+    db.flush()
+    return instruments
+
+
 def apply_curated_issuer_sector_mapping(
     db: Session,
     *,
@@ -174,6 +226,10 @@ def apply_curated_issuer_sector_mapping(
 ) -> None:
     manual_seed_source = db.scalar(select(DataSource).where(DataSource.code == "manual_seed"))
     sector_by_code = {sector.code: sector for sector in db.scalars(select(Sector)).all()}
+    seen_history_keys = {
+        (history.issuer_id, history.sector_id, history.valid_from)
+        for history in db.scalars(select(IssuerSectorHistory)).all()
+    }
 
     for mapping in CURATED_ISSUER_MAPPINGS:
         sector = sector_by_code.get(mapping["sector_code"])
@@ -186,40 +242,41 @@ def apply_curated_issuer_sector_mapping(
         if not instruments:
             continue
 
+        issuer = _resolve_mapping_issuer(
+            db,
+            instruments=instruments,
+            issuer_name=mapping["issuer_name"],
+            counter=issuers_counter,
+        )
+
         for instrument in instruments:
-            issuer = instrument.issuer
-            if issuer is None:
-                issuer = _get_or_create_issuer(
-                    db,
-                    issuer_name=mapping["issuer_name"],
-                    counter=issuers_counter,
-                )
+            if instrument.issuer_id != issuer.id:
                 instrument.issuer = issuer
+
+        current_history = _get_current_sector_history(db, issuer_id=issuer.id)
+        if current_history is not None:
+            if current_history.sector_id == sector.id:
+                history_counter.skipped += 1
             else:
-                _update_existing_issuer_defaults(
-                    issuer,
-                    issuer_name=mapping["issuer_name"],
-                    counter=issuers_counter,
-                )
+                history_counter.conflicts += 1
+            continue
 
-            current_history = _get_current_sector_history(db, issuer_id=issuer.id)
-            if current_history is not None:
-                if current_history.sector_id == sector.id:
-                    history_counter.skipped += 1
-                else:
-                    history_counter.conflicts += 1
-                continue
+        history_key = (issuer.id, sector.id, REFERENCE_VALID_FROM)
+        if history_key in seen_history_keys:
+            history_counter.skipped += 1
+            continue
 
-            db.add(
-                IssuerSectorHistory(
-                    issuer=issuer,
-                    sector=sector,
-                    valid_from=REFERENCE_VALID_FROM,
-                    valid_to=None,
-                    source=manual_seed_source,
-                ),
+        db.add(
+            IssuerSectorHistory(
+                issuer=issuer,
+                sector=sector,
+                valid_from=REFERENCE_VALID_FROM,
+                valid_to=None,
+                source=manual_seed_source,
             )
-            history_counter.created += 1
+        )
+        seen_history_keys.add(history_key)
+        history_counter.created += 1
 
     db.flush()
 
@@ -289,6 +346,25 @@ def _get_or_create_issuer(db: Session, *, issuer_name: str, counter: SeedCounter
     else:
         counter.skipped += 1
 
+    return issuer
+
+
+def _resolve_mapping_issuer(
+    db: Session,
+    *,
+    instruments: list[Instrument],
+    issuer_name: str,
+    counter: SeedCounter,
+) -> Issuer:
+    issuer = next((instrument.issuer for instrument in instruments if instrument.issuer), None)
+    if issuer is None:
+        return _get_or_create_issuer(db, issuer_name=issuer_name, counter=counter)
+
+    _update_existing_issuer_defaults(
+        issuer,
+        issuer_name=issuer_name,
+        counter=counter,
+    )
     return issuer
 
 

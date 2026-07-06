@@ -11,9 +11,11 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.modules.events.models import Event, EventType
 from app.modules.hypotheses import key_rate_v2_service
+from app.modules.market.models import Ticker
 from app.modules.market_data.models import PriceCandle
 from app.modules.market_data.service import CandleImportResult
 from app.modules.reference.models import Instrument, Issuer, IssuerSectorHistory, Sector
+from app.modules.reference.seed import seed_reference_layer
 
 
 @pytest.fixture
@@ -54,6 +56,7 @@ def test_key_rate_impact_v2_endpoint_works_when_data_is_prepared(api_client):
         _seed_event(session, event_type, event_date=date(2024, 1, 3))
         _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
         _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 3, 5), close=Decimal("111"))
         session.commit()
     finally:
         session.close()
@@ -381,8 +384,10 @@ def test_key_rate_impact_v2_sector_comparison_success(api_client):
         _seed_event(session, event_type, event_date=date(2024, 1, 3))
         _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
         _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 3, 5), close=Decimal("111"))
         _seed_daily_candle(session, peer, trading_date=date(2024, 1, 3), close=Decimal("100"))
         _seed_daily_candle(session, peer, trading_date=date(2024, 1, 4), close=Decimal("105"))
+        _seed_daily_candle(session, peer, trading_date=date(2024, 3, 5), close=Decimal("106"))
         session.commit()
     finally:
         session.close()
@@ -431,8 +436,10 @@ def test_key_rate_impact_v2_sector_peers_are_deduplicated(api_client):
         _seed_event(session, event_type, event_date=date(2024, 1, 3))
         _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
         _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 3, 5), close=Decimal("111"))
         _seed_daily_candle(session, peer, trading_date=date(2024, 1, 3), close=Decimal("100"))
         _seed_daily_candle(session, peer, trading_date=date(2024, 1, 4), close=Decimal("105"))
+        _seed_daily_candle(session, peer, trading_date=date(2024, 3, 5), close=Decimal("106"))
         session.commit()
     finally:
         session.close()
@@ -515,6 +522,53 @@ def test_key_rate_impact_v2_sector_with_no_peers_returns_no_peers(api_client):
     assert response.json()["sector_comparison"]["status"] == "no_peers"
 
 
+def test_key_rate_impact_v2_flot_seeded_sector_returns_no_peers_not_no_sector_mapping(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        session.add(
+            Ticker(
+                secid="FLOT",
+                short_name="FLOT",
+                name="Sovcomflot",
+                board="TQBR",
+                market="shares",
+                engine="stock",
+                currency="RUB",
+            ),
+        )
+        session.commit()
+        seed_reference_layer(session)
+
+        instrument = session.scalar(select(Instrument).where(Instrument.secid == "FLOT"))
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 3, 5), close=Decimal("111"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "FLOT",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "include_sector_comparison": True,
+        },
+    )
+
+    sector_comparison = response.json()["sector_comparison"]
+
+    assert response.status_code == 200
+    assert sector_comparison["status"] == "no_peers"
+    assert sector_comparison["sector"]["code"] == "transport"
+
+
 def test_key_rate_impact_v2_missing_peer_candles_are_skipped(api_client):
     client, SessionLocal = api_client
     session = SessionLocal()
@@ -577,6 +631,7 @@ def test_key_rate_impact_v2_auto_prepare_sector_data_respects_peer_limit(
         peer = db.scalar(select(Instrument).where(Instrument.secid == secid))
         _seed_daily_candle(db, peer, trading_date=date(2024, 1, 3), close=Decimal("100"))
         _seed_daily_candle(db, peer, trading_date=date(2024, 1, 4), close=Decimal("101"))
+        _seed_daily_candle(db, peer, trading_date=date(2024, 3, 5), close=Decimal("102"))
         db.commit()
         return CandleImportResult(
             secid=secid,
@@ -785,6 +840,98 @@ def test_key_rate_impact_v2_single_existing_candle_is_not_ready(api_client, monk
     assert data["events_processed"] == 1
     assert data["data_preparation"]["candles_importer_ran"] is True
     assert data["data_preparation"]["candles_rows_loaded"] == 1
+
+
+def test_key_rate_impact_v2_candle_coverage_requires_end_of_range(api_client):
+    _, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        instrument = _seed_instrument(session)
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("101"))
+        session.commit()
+
+        assert (
+            key_rate_v2_service._has_daily_candles(
+                session,
+                instrument_id=instrument.id,
+                required_from=date(2024, 1, 1),
+                required_to=date(2024, 3, 16),
+            )
+            is False
+        )
+
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 3, 5), close=Decimal("102"))
+        session.commit()
+
+        assert (
+            key_rate_v2_service._has_daily_candles(
+                session,
+                instrument_id=instrument.id,
+                required_from=date(2024, 1, 1),
+                required_to=date(2024, 3, 16),
+            )
+            is True
+        )
+    finally:
+        session.close()
+
+
+def test_key_rate_impact_v2_imports_missing_candle_tail(api_client, monkeypatch):
+    client, SessionLocal = api_client
+    import_calls = []
+    session = SessionLocal()
+    try:
+        instrument = _seed_instrument(session, secid="FLOT")
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_event(session, event_type, event_date=date(2025, 5, 15))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("101"))
+        _seed_daily_candle(session, instrument, trading_date=date(2025, 3, 1), close=Decimal("120"))
+        session.commit()
+    finally:
+        session.close()
+
+    def fake_import_candles(db, secid, date_from, date_to, interval="1d"):
+        import_calls.append((secid, date_from, date_to, interval))
+        instrument = db.scalar(select(Instrument).where(Instrument.secid == secid))
+        _seed_daily_candle(db, instrument, trading_date=date(2025, 5, 15), close=Decimal("130"))
+        _seed_daily_candle(db, instrument, trading_date=date(2025, 5, 16), close=Decimal("143"))
+        _seed_daily_candle(db, instrument, trading_date=date(2025, 8, 1), close=Decimal("150"))
+        db.commit()
+        return CandleImportResult(
+            secid=secid,
+            interval=interval,
+            date_from=date_from,
+            date_to=date_to,
+            rows_loaded=3,
+            ingestion_run_id=1,
+            status="success",
+        )
+
+    monkeypatch.setattr(key_rate_v2_service, "import_daily_candles", fake_import_candles)
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "FLOT",
+            "date_from": "2024-01-01",
+            "date_to": "2025-06-30",
+            "horizons": [1],
+            "auto_prepare_data": True,
+            "include_sector_comparison": False,
+        },
+    )
+
+    data = response.json()
+
+    assert response.status_code == 200
+    assert import_calls == [("FLOT", date(2025, 3, 2), date(2025, 8, 14), "1d")]
+    assert data["data_preparation"]["candles_importer_ran"] is True
+    assert data["data_preparation"]["candles_rows_loaded"] == 3
+    assert data["data_preparation"]["candles_ready"] is True
+    assert data["events_processed"] == 2
 
 
 def test_key_rate_impact_v2_invalid_secid_returns_structured_error(api_client):

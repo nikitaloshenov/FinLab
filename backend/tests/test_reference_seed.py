@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -91,6 +91,78 @@ def test_reference_seed_is_idempotent_on_small_db():
         session.close()
 
 
+def test_reference_seed_assigns_curated_sectors_and_is_idempotent():
+    session = _build_session()
+    try:
+        _add_tickers(
+            session,
+            "SBER",
+            "SBERP",
+            "CBOM",
+            "MOEX",
+            "GAZP",
+            "LKOH",
+            "ROSN",
+            "NVTK",
+            "FLOT",
+            "YDEX",
+            "IRAO",
+        )
+        session.commit()
+
+        first_summary = seed_reference_layer(session)
+        second_summary = seed_reference_layer(session)
+
+        assert first_summary.issuer_sector_history.created == 10
+        assert second_summary.issuer_sector_history.created == 0
+        assert second_summary.issuer_sector_history.conflicts == 0
+        assert session.scalar(select(func.count()).select_from(IssuerSectorHistory)) == 10
+
+        assert _sector_code_for_secid(session, "SBER") == "finance"
+        assert _sector_code_for_secid(session, "SBERP") == "finance"
+        assert _sector_code_for_secid(session, "CBOM") == "finance"
+        assert _sector_code_for_secid(session, "MOEX") == "financial_infrastructure"
+        assert _sector_code_for_secid(session, "GAZP") == "oil_gas"
+        assert _sector_code_for_secid(session, "LKOH") == "oil_gas"
+        assert _sector_code_for_secid(session, "ROSN") == "oil_gas"
+        assert _sector_code_for_secid(session, "NVTK") == "oil_gas"
+        assert _sector_code_for_secid(session, "FLOT") == "transport"
+        assert _sector_code_for_secid(session, "YDEX") == "it"
+        assert _sector_code_for_secid(session, "IRAO") == "utilities"
+    finally:
+        session.close()
+
+
+def test_reference_seed_does_not_overwrite_conflicting_sector_history():
+    session = _build_session()
+    try:
+        _add_tickers(session, "FLOT")
+        seed_reference_layer(session)
+
+        instrument = session.scalar(select(Instrument).where(Instrument.secid == "FLOT"))
+        transport_history = session.scalar(
+            select(IssuerSectorHistory).where(IssuerSectorHistory.issuer_id == instrument.issuer_id),
+        )
+        other_sector = session.scalar(select(Sector).where(Sector.code == "finance"))
+        transport_history.sector = other_sector
+        session.commit()
+
+        summary = seed_reference_layer(session)
+
+        assert summary.issuer_sector_history.conflicts == 1
+        assert _sector_code_for_secid(session, "FLOT") == "finance"
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(IssuerSectorHistory)
+                .where(IssuerSectorHistory.issuer_id == instrument.issuer_id),
+            )
+            == 1
+        )
+    finally:
+        session.close()
+
+
 def _build_session():
     engine = create_engine(
         "sqlite:///:memory:",
@@ -100,6 +172,31 @@ def _build_session():
     Base.metadata.create_all(bind=engine)
     session_local = sessionmaker(bind=engine)
     return session_local()
+
+
+def _add_tickers(session, *secids: str) -> None:
+    for secid in secids:
+        session.add(
+            Ticker(
+                secid=secid,
+                short_name=secid,
+                name=f"{secid} issuer",
+                board="TQBR",
+                market="shares",
+                engine="stock",
+                currency="RUB",
+            ),
+        )
+
+
+def _sector_code_for_secid(session, secid: str) -> str | None:
+    return session.scalar(
+        select(Sector.code)
+        .join(IssuerSectorHistory, IssuerSectorHistory.sector_id == Sector.id)
+        .join(Issuer, Issuer.id == IssuerSectorHistory.issuer_id)
+        .join(Instrument, Instrument.issuer_id == Issuer.id)
+        .where(Instrument.secid == secid),
+    )
 
 
 def _assert_unique(values):

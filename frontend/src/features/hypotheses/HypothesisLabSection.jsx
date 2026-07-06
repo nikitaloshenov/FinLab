@@ -3,20 +3,6 @@ import { useEffect, useState } from "react";
 import { analyzeKeyRateImpactV2 } from "./api.js";
 import { HypothesisResultPanel } from "./HypothesisResultPanel.jsx";
 
-const QUICK_TICKERS = [
-  { secid: "SBER", name: "Сбербанк" },
-  { secid: "SBERP", name: "Сбербанк-п" },
-  { secid: "T", name: "Т-Банк" },
-  { secid: "VTBR", name: "ВТБ" },
-  { secid: "CBOM", name: "МКБ" },
-  { secid: "MOEX", name: "Московская биржа" },
-  { secid: "GAZP", name: "Газпром" },
-  { secid: "LKOH", name: "Лукойл" },
-  { secid: "ROSN", name: "Роснефть" },
-  { secid: "NVTK", name: "Новатэк" },
-  { secid: "YDEX", name: "Яндекс" },
-];
-
 const COMPANY_NAMES = {
   SBER: "Сбербанк",
   SBERP: "Сбербанк-п",
@@ -89,10 +75,6 @@ export function HypothesisLabSection({ selectedTicker }) {
       ...currentFormData,
       [fieldName]: value,
     }));
-  }
-
-  function selectMainTicker(secid) {
-    updateField("main_ticker", secid);
   }
 
   function toggleHorizon(horizon) {
@@ -168,18 +150,16 @@ export function HypothesisLabSection({ selectedTicker }) {
   const directionOption =
     EVENT_DIRECTION_OPTIONS.find((option) => option.value === formData.event_direction) ||
     EVENT_DIRECTION_OPTIONS[0];
-  const selectedDateRange = getSelectedDateRange(formData);
-  const usesCurrentYear = Number(formData.period_end_year) === CURRENT_YEAR;
 
   return (
     <section className="card hypothesisSection">
       <div className="hypothesisHeader">
         <div>
-          <p className="sectionKicker">Key Rate Impact v2</p>
+          <p className="sectionKicker">Анализ решений ЦБ</p>
           <h2>Анализ реакции на решения ЦБ</h2>
           <p>
-            Исторический event-study по дневным свечам: выбранная акция, решения по
-            ключевой ставке, торговые горизонты и сравнение с компаниями сектора.
+            Исторический анализ: как выбранная акция менялась после решений ЦБ по
+            ключевой ставке.
           </p>
         </div>
       </div>
@@ -260,33 +240,6 @@ export function HypothesisLabSection({ selectedTicker }) {
                 </select>
               </label>
             </div>
-            <p className="hypothesisHint">
-              Мы берём решения ЦБ внутри выбранных лет и считаем реакцию акции после
-              каждого события. Диапазон запроса: {selectedDateRange.date_from} —{" "}
-              {selectedDateRange.date_to}.
-            </p>
-            {usesCurrentYear && !formData.use_custom_dates && (
-              <p className="hypothesisHint">
-                Для выбранных горизонтов нужны дневные цены после даты решения ЦБ.
-                Самые свежие события могут быть пропущены, если последующих свечей ещё
-                недостаточно.
-              </p>
-            )}
-          </div>
-
-          <div className="hypothesisTickerChips">
-            <span>Быстрый выбор акции:</span>
-            {QUICK_TICKERS.map((item) => (
-              <button
-                className={mainTicker === item.secid ? "tickerChip active" : "tickerChip"}
-                key={item.secid}
-                type="button"
-                title={item.name}
-                onClick={() => selectMainTicker(item.secid)}
-              >
-                {item.secid}
-              </button>
-            ))}
           </div>
 
           <div className="hypothesisControlGroup">
@@ -322,7 +275,7 @@ export function HypothesisLabSection({ selectedTicker }) {
               }
             />
             <span className="toggleSwitch" aria-hidden="true" />
-            <span>Сравнить с компаниями того же сектора</span>
+            <span>Сравнить с компаниями сектора</span>
           </label>
 
           <details className="advancedSettings">
@@ -337,7 +290,7 @@ export function HypothesisLabSection({ selectedTicker }) {
                   }
                 />
                 <span className="toggleSwitch" aria-hidden="true" />
-                <span>Подготовить недостающие события и дневные цены</span>
+                <span>Подготовить недостающие события и цены</span>
               </label>
 
               <label className="hypothesisToggle compact">
@@ -349,7 +302,7 @@ export function HypothesisLabSection({ selectedTicker }) {
                   }
                 />
                 <span className="toggleSwitch" aria-hidden="true" />
-                <span>Перезагрузить дневные свечи акции</span>
+                <span>Перезагрузить дневные цены акции</span>
               </label>
 
               {formData.include_sector_comparison && (
@@ -375,7 +328,7 @@ export function HypothesisLabSection({ selectedTicker }) {
                       }
                     />
                     <span className="toggleSwitch" aria-hidden="true" />
-                    <span>Догрузить дневные цены компаний сектора</span>
+                    <span>Догрузить цены компаний сектора</span>
                   </label>
                   <p className="hypothesisHint">
                     По умолчанию данные компаний сектора не догружаются, чтобы не делать
@@ -431,8 +384,10 @@ export function HypothesisLabSection({ selectedTicker }) {
               {companyName} {directionOption.preview}
             </strong>
             <p>
-              Анализируем историческую реакцию на горизонтах {horizonText}. Сравнение с
-              компаниями сектора не является формальным секторным индексом.
+              Анализируем, как акция менялась через {horizonText} после решений ЦБ.
+              {formData.include_sector_comparison
+                ? " Сравнение с сектором показывает реакцию похожих компаний."
+                : ""}
             </p>
           </div>
 
@@ -483,15 +438,15 @@ function getAnalyzeErrorMessage(error) {
   }
 
   if (error?.code === "key_rate_v2_unknown_instrument" || error?.status === 404) {
-    return "Инструмент не найден в reference layer. Проверьте ticker.";
+    return "Акция не найдена в справочнике FinLab. Проверьте ticker.";
   }
 
   if (error?.code === "key_rate_v2_data_not_prepared" || error?.status === 409) {
-    return "Нет подготовленных событий или дневных цен. Включите подготовку данных и повторите анализ.";
+    return "Нет подготовленных событий или цен. Включите подготовку данных и повторите анализ.";
   }
 
   if (error?.code === "key_rate_v2_data_preparation_failed" || error?.status === 502) {
-    return "Не удалось подготовить дневные свечи. Проверьте доступность MOEX/API и повторите позже.";
+    return "Не удалось подготовить цены. Проверьте доступность MOEX/API и повторите позже.";
   }
 
   if (error?.code === "network_error" || error?.status === 0) {
@@ -509,8 +464,17 @@ function formatSelectedHorizons(horizons) {
   }
 
   return sortedHorizons
-    .map((horizon) => `${horizon}`)
+    .map(formatTradingDays)
     .join(", ")
-    .replace(/, ([^,]*)$/, " и $1")
-    .concat(" торговых дней");
+    .replace(/, ([^,]*)$/, " и $1");
+}
+
+function formatTradingDays(value) {
+  const numberValue = Number(value);
+
+  if (numberValue === 1) {
+    return "1 торговый день";
+  }
+
+  return `${numberValue} торговых дней`;
 }

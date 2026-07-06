@@ -11,9 +11,11 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.modules.events.models import Event, EventType
 from app.modules.hypotheses import key_rate_v2_service
+from app.modules.market.models import Ticker
 from app.modules.market_data.models import PriceCandle
 from app.modules.market_data.service import CandleImportResult
 from app.modules.reference.models import Instrument, Issuer, IssuerSectorHistory, Sector
+from app.modules.reference.seed import seed_reference_layer
 
 
 @pytest.fixture
@@ -518,6 +520,53 @@ def test_key_rate_impact_v2_sector_with_no_peers_returns_no_peers(api_client):
 
     assert response.status_code == 200
     assert response.json()["sector_comparison"]["status"] == "no_peers"
+
+
+def test_key_rate_impact_v2_flot_seeded_sector_returns_no_peers_not_no_sector_mapping(api_client):
+    client, SessionLocal = api_client
+    session = SessionLocal()
+    try:
+        session.add(
+            Ticker(
+                secid="FLOT",
+                short_name="FLOT",
+                name="Sovcomflot",
+                board="TQBR",
+                market="shares",
+                engine="stock",
+                currency="RUB",
+            ),
+        )
+        session.commit()
+        seed_reference_layer(session)
+
+        instrument = session.scalar(select(Instrument).where(Instrument.secid == "FLOT"))
+        event_type = _seed_event_type(session)
+        _seed_event(session, event_type, event_date=date(2024, 1, 3))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 3), close=Decimal("100"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 1, 4), close=Decimal("110"))
+        _seed_daily_candle(session, instrument, trading_date=date(2024, 3, 5), close=Decimal("111"))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post(
+        "/api/v1/hypotheses/key-rate-impact/v2",
+        json={
+            "secid": "FLOT",
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "horizons": [1],
+            "auto_prepare_data": False,
+            "include_sector_comparison": True,
+        },
+    )
+
+    sector_comparison = response.json()["sector_comparison"]
+
+    assert response.status_code == 200
+    assert sector_comparison["status"] == "no_peers"
+    assert sector_comparison["sector"]["code"] == "transport"
 
 
 def test_key_rate_impact_v2_missing_peer_candles_are_skipped(api_client):

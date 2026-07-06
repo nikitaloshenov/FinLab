@@ -81,6 +81,8 @@ Sector comparison:
 
 Important: this is peer-based comparison, not an official sector index like IMOEX.
 
+Sector assignment is curated, not guessed from ticker names. The reference seed creates known sector records and assigns `issuer_sector_history` for supported MOEX tickers. If an issuer already has a different current sector, the seed reports a conflict and does not overwrite it silently.
+
 ## Data Coverage
 
 The market chart and analyzer use different flows:

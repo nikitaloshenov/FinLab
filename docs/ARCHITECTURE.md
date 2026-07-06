@@ -120,6 +120,7 @@ Important frontend files:
 - Daily prices are used for event-study, not latest price or intraday chart data.
 - Missing event/horizon data is skipped, not converted to zero.
 - Sector comparison uses peer companies from reference data, not an official sector index.
+- Sector mapping is curated and seed-based: `python -m app.modules.reference.seed` creates known sectors and idempotently assigns sector history for supported MOEX tickers such as SBER/SBERP, MOEX, oil & gas names, FLOT and major utilities/consumer/IT instruments.
 - Anonymous demo sessions are used for watchlist/alerts, not full authentication.
 - Docker startup runs migrations and imports key-rate decisions for demo readiness.
 

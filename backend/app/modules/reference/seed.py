@@ -30,6 +30,7 @@ class SeedCounter:
     created: int = 0
     updated: int = 0
     skipped: int = 0
+    conflicts: int = 0
 
 
 @dataclass
@@ -185,24 +186,30 @@ def apply_curated_issuer_sector_mapping(
         if not instruments:
             continue
 
-        issuer = _get_or_create_issuer(
-            db,
-            issuer_name=mapping["issuer_name"],
-            counter=issuers_counter,
-        )
-
         for instrument in instruments:
-            if instrument.issuer_id != issuer.id:
+            issuer = instrument.issuer
+            if issuer is None:
+                issuer = _get_or_create_issuer(
+                    db,
+                    issuer_name=mapping["issuer_name"],
+                    counter=issuers_counter,
+                )
                 instrument.issuer = issuer
+            else:
+                _update_existing_issuer_defaults(
+                    issuer,
+                    issuer_name=mapping["issuer_name"],
+                    counter=issuers_counter,
+                )
 
-        history = db.scalar(
-            select(IssuerSectorHistory).where(
-                IssuerSectorHistory.issuer_id == issuer.id,
-                IssuerSectorHistory.sector_id == sector.id,
-                IssuerSectorHistory.valid_from == REFERENCE_VALID_FROM,
-            ),
-        )
-        if history is None:
+            current_history = _get_current_sector_history(db, issuer_id=issuer.id)
+            if current_history is not None:
+                if current_history.sector_id == sector.id:
+                    history_counter.skipped += 1
+                else:
+                    history_counter.conflicts += 1
+                continue
+
             db.add(
                 IssuerSectorHistory(
                     issuer=issuer,
@@ -213,8 +220,6 @@ def apply_curated_issuer_sector_mapping(
                 ),
             )
             history_counter.created += 1
-        else:
-            history_counter.skipped += 1
 
     db.flush()
 
@@ -287,6 +292,40 @@ def _get_or_create_issuer(db: Session, *, issuer_name: str, counter: SeedCounter
     return issuer
 
 
+def _update_existing_issuer_defaults(
+    issuer: Issuer,
+    *,
+    issuer_name: str,
+    counter: SeedCounter,
+) -> None:
+    changed = _update_fields(
+        issuer,
+        {
+            "short_name": issuer.short_name or issuer_name,
+            "country": issuer.country or "RU",
+            "is_active": True,
+        },
+    )
+    if changed:
+        counter.updated += 1
+    else:
+        counter.skipped += 1
+
+
+def _get_current_sector_history(
+    db: Session,
+    *,
+    issuer_id: int,
+) -> IssuerSectorHistory | None:
+    return db.scalar(
+        select(IssuerSectorHistory)
+        .where(IssuerSectorHistory.issuer_id == issuer_id)
+        .where(IssuerSectorHistory.valid_to.is_(None))
+        .order_by(IssuerSectorHistory.valid_from.desc(), IssuerSectorHistory.id.desc())
+        .limit(1),
+    )
+
+
 def _update_fields(instance: object, values: dict[str, object]) -> bool:
     changed = False
 
@@ -309,7 +348,10 @@ def format_seed_summary(summary: ReferenceSeedSummary) -> str:
         ("benchmarks", summary.benchmarks),
     ):
         lines.append(
-            f"{label}: created={counter.created} updated={counter.updated} skipped={counter.skipped}",
+            (
+                f"{label}: created={counter.created} updated={counter.updated} "
+                f"skipped={counter.skipped} conflicts={counter.conflicts}"
+            ),
         )
 
     return "\n".join(lines)

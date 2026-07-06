@@ -1,5 +1,24 @@
 # FinLab
 
+🇷🇺 **Кратко на русском**
+
+FinLab — fullstack fintech-проект для анализа исторической реакции акций MOEX на решения Банка России по ключевой ставке.
+
+Главный сценарий: пользователь выбирает тикер, период и тип решения ЦБ, а система считает реакцию акции через 1/5/10 торговых дней, показывает использованные и пропущенные события, качество данных и сравнение с сектором.
+
+Проект сделан как backend-oriented portfolio project: FastAPI, PostgreSQL, SQLAlchemy, Alembic, Pytest, Docker, GitHub Actions CI/CD и React/Vite frontend.
+
+- **Live demo:** https://jirniydizainer.ru
+- **API docs:** https://jirniydizainer.ru/docs
+- **Main feature:** Анализ реакции акций на решения ЦБ
+- **Stack:** FastAPI, PostgreSQL, SQLAlchemy, Alembic, React, Docker, GitHub Actions
+
+> Основная техническая документация ниже оставлена на английском, чтобы проект выглядел как open-source/portfolio repository и был понятен technical audience.
+
+---
+
+🇬🇧 **English technical overview**
+
 FinLab is a backend-oriented fullstack fintech project for historical analysis of market hypotheses on the Russian equity market.
 
 - Live demo: https://jirniydizainer.ru

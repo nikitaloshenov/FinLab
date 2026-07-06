@@ -13,7 +13,7 @@ FinLab — fullstack fintech-проект для анализа историче
 - **Main feature:** Анализ реакции акций на решения ЦБ
 - **Stack:** FastAPI, PostgreSQL, SQLAlchemy, Alembic, React, Docker, GitHub Actions
 
-> Основная техническая документация ниже оставлена на английском, чтобы проект выглядел как open-source/portfolio repository и был понятен technical audience.
+> Основная техническая документация ниже оставлена на английском.
 
 ---
 

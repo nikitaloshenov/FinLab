@@ -228,7 +228,37 @@ Required GitHub Secrets:
 
 Production `.env` and SSH keys live outside the repository and must not be committed.
 
-## Local Run Without Docker
+## Local Development on Windows
+
+For day-to-day local development on Windows/PowerShell, use the helper script from the repository root:
+
+```powershell
+.\scripts\dev\start-local.ps1
+```
+
+It starts PostgreSQL through Docker Compose, runs Alembic migrations, runs the reference seed, imports key-rate events and opens separate PowerShell windows for backend and frontend dev servers.
+
+Local URLs:
+
+- Backend: http://127.0.0.1:8000
+- Swagger: http://127.0.0.1:8000/docs
+- Frontend: http://127.0.0.1:5173
+
+To stop the local PostgreSQL container:
+
+```powershell
+.\scripts\dev\stop-local.ps1
+```
+
+Close backend/frontend dev windows manually if they are still open.
+
+## Local Run Without Docker Helper
+
+PostgreSQL:
+
+```powershell
+docker compose up -d postgres
+```
 
 Backend:
 
@@ -237,8 +267,10 @@ cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-alembic upgrade head
+python -m alembic upgrade head
+python -m app.modules.reference.seed
 python scripts/import_key_rate_decisions.py --file app/data/key_rate_decisions_official.csv
+python -m app.modules.events.import_key_rate_events
 python -m uvicorn app.main:app --reload
 ```
 
@@ -247,7 +279,8 @@ Frontend:
 ```powershell
 cd frontend
 npm install
-npm run dev
+$env:VITE_API_BASE_URL="http://127.0.0.1:8000/api/v1"
+npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort --force
 ```
 
 ## Tests

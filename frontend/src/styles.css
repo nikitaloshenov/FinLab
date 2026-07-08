@@ -50,7 +50,7 @@ select {
 }
 
 .page {
-  width: min(1440px, calc(100% - 32px));
+  width: min(1560px, calc(100% - 32px));
   margin: 0 auto;
   padding: 20px 0 48px;
 }
@@ -1125,8 +1125,8 @@ td {
 
 .hypothesisLayout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.74fr) minmax(0, 1.26fr);
-  gap: 16px;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
   min-width: 0;
   max-width: 100%;
@@ -1594,7 +1594,7 @@ td {
 }
 
 .kpiGrid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .resultMetric,
@@ -1642,7 +1642,8 @@ td {
 .resultMetric strong {
   display: block;
   margin-top: 7px;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
   color: var(--text);
   font-size: 18px;
   font-variant-numeric: tabular-nums;
@@ -1783,7 +1784,7 @@ td {
 
 .compactTable th,
 .compactTable td {
-  padding: 11px 9px;
+  padding: 12px 12px;
   font-size: 14px;
   white-space: nowrap;
 }
@@ -1799,29 +1800,44 @@ td {
 }
 
 .horizonSummaryTable table {
-  min-width: 620px;
+  min-width: 760px;
   table-layout: fixed;
 }
 
 .horizonSummaryTable th:nth-child(1),
 .horizonSummaryTable td:nth-child(1) {
-  width: 16%;
+  width: 13%;
 }
 
 .horizonSummaryTable th:nth-child(2),
 .horizonSummaryTable td:nth-child(2),
 .horizonSummaryTable th:nth-child(3),
-.horizonSummaryTable td:nth-child(3),
+.horizonSummaryTable td:nth-child(3) {
+  width: 15%;
+}
+
 .horizonSummaryTable th:nth-child(4),
-.horizonSummaryTable td:nth-child(4),
-.horizonSummaryTable th:nth-child(6),
-.horizonSummaryTable td:nth-child(6) {
-  width: 16%;
+.horizonSummaryTable td:nth-child(4) {
+  width: 20%;
 }
 
 .horizonSummaryTable th:nth-child(5),
 .horizonSummaryTable td:nth-child(5) {
+  width: 17%;
+}
+
+.horizonSummaryTable th:nth-child(6),
+.horizonSummaryTable td:nth-child(6) {
   width: 20%;
+}
+
+.horizonSummaryTable td:nth-child(2),
+.horizonSummaryTable td:nth-child(3),
+.horizonSummaryTable td:nth-child(5),
+.horizonSummaryTable th:nth-child(2),
+.horizonSummaryTable th:nth-child(3),
+.horizonSummaryTable th:nth-child(5) {
+  font-variant-numeric: tabular-nums;
 }
 
 .highlightDataRow {
@@ -1849,7 +1865,9 @@ td {
 }
 
 .sectorCallout {
-  padding: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #ffffff;
@@ -1857,10 +1875,10 @@ td {
 
 .sectorCallout strong {
   display: block;
-  margin-top: 5px;
+  margin-top: 0;
   color: var(--text);
   font-size: 15px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .sectorCallout span {
@@ -1870,14 +1888,14 @@ td {
 }
 
 .sectorCallout p {
-  margin: 7px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.45;
 }
 
 .sectorSummaryTable table {
-  min-width: 600px;
+  min-width: 680px;
   table-layout: fixed;
 }
 
@@ -1907,7 +1925,9 @@ td {
   margin-top: 4px;
   color: var(--muted);
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 1.28;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .eventDetails summary {
